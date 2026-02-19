@@ -1,0 +1,17 @@
+{
+  "name": "asl-websocket-server",
+  "version": "1.0.0",
+  "description": "Servidor WebSocket para ASL System",
+  "main": "websocket-server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node websocket-server.js",
+    "dev": "node --watch websocket-server.js"
+  },
+  "keywords": ["websocket", "asl", "hotel"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

@@ -1,68 +1,131 @@
+@import "tailwindcss";
+
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+  /* Fondos - Tonos madera clara */
+  --bg-primary: #faf7f2;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: rgba(222, 184, 135, 0.15);
+  
+  /* Textos - Tonos tierra */
+  --text-primary: #3e2723;
+  --text-secondary: #5d4037;
+  --text-tertiary: #8d6e63;
+  
+  /* Bordes y navegación */
+  --border-color: rgba(161, 136, 127, 0.25);
+  --nav-bg: rgba(250, 247, 242, 0.9);
+  
+  /*Paleta madera + mostaza*/
+  --hotel-primary: #d4a574;       
+  --hotel-secondary: #c89f5d;    
+  --room-service: #e6b24a;       
+  --services: #b8956a;            
+  --problem: #c1694f;            
+  --extra: #8b7355;                
+  --success: #7d9b6e;              
+  --warning: #d9a441;              
+}
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    
+    /* Fondos - Tonos madera oscura */
+    --bg-primary: #1a1410;
+    --bg-secondary: #2a1f1a;
+    --bg-tertiary: rgba(139, 115, 85, 0.2);
+    
+    /* Textos - Tonos cálidos claros */
+    --text-primary: #f5f1e8;
+    --text-secondary: #d4c4b0;
+    --text-tertiary: #a89580;
+    
+    /* Bordes y navegación */
+    --border-color: rgba(139, 115, 85, 0.3);
+    --nav-bg: rgba(26, 20, 16, 0.9);
+  
+    /* Colores específicos del hotel */
+    --hotel-primary: #e6c18a;         
+    --hotel-secondary: #ddb870;       
+    --room-service: #f5c962;          
+    --services: #d4ad7a;              
+    --problem: #d4836f;              
+    --extra: #a89070;                
+    --success: #95b584;               
+    --warning: #ebb957;              
+  }
+}
 
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
 }
 
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
+.bg-auto-primary {
+  background-color: var(--bg-primary);
 }
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+.bg-auto-secondary {
+  background-color: var(--bg-secondary);
 }
 
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+.bg-auto-tertiary {
+  background-color: var(--bg-tertiary);
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
+.text-auto-primary {
+  color: var(--text-primary);
+}
+
+.text-auto-secondary {
+  color: var(--text-secondary);
+}
+
+.text-auto-tertiary {
+  color: var(--text-tertiary);
+}
+
+.border-auto {
+  border-color: var(--border-color);
+}
+
+/* Estilos para select y option en modo oscuro */
+@media (prefers-color-scheme: dark) {
+  select {
+    color-scheme: dark;
   }
-  a:hover {
-    color: #747bff;
+  
+  select option {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
   }
-  button {
-    background-color: #f9f9f9;
-  }
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: var(--bg-tertiary);
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--hotel-primary), var(--services));
+  border-radius: 10px;
+  transition: all 0.3s ease;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, var(--services), var(--hotel-primary));
 }
