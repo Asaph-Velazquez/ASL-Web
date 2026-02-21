@@ -92,36 +92,66 @@ function Home() {
     alert('Configuración guardada exitosamente ✅');
   };
 
+  // Actualizar estado de peticiones
+  const manejarActualizarEstado = (idPeticion: string, nuevoEstado: 'pending' | 'in-progress' | 'completed') => {
+    enviarMensaje({
+      type: 'UPDATE_REQUEST',
+      payload: {
+        id: idPeticion,
+        status: nuevoEstado,
+      },
+    });
+
+    // Actualizar localmente también
+    setPeticiones(prev =>
+      prev.map(pet =>
+        pet.id === idPeticion ? { ...pet, estado: nuevoEstado } : pet
+      )
+    );
+
+    console.log('✅ Estado actualizado:', idPeticion, '→', nuevoEstado);
+  };
+
   // Escuchar mensajes de WebSocket
   useEffect(() => {
     if (ultimoMensaje) {
       try {
         switch (ultimoMensaje.type) {
           case 'NEW_REQUEST':
-            const nuevaPeticion = {
-              ...ultimoMensaje.payload,
-              fecha: new Date(ultimoMensaje.payload.timestamp),
+            // Mapear campos de inglés (app móvil) a español (dashboard)
+            const payload = ultimoMensaje.payload;
+            const nuevaPeticion: Peticion = {
+              id: payload.id,
+              tipo: payload.type,                          // type → tipo
+              numeroHabitacion: payload.roomNumber,        // roomNumber → numeroHabitacion
+              nombreHuesped: payload.guestName,            // guestName → nombreHuesped
+              mensaje: payload.message,                    // message → mensaje
+              prioridad: payload.priority,                 // priority → prioridad
+              estado: payload.status,                      // status → estado
+              fecha: new Date(payload.timestamp),          // timestamp → fecha
             };
             setPeticiones(prev => [nuevaPeticion, ...prev]);
-            console.log('Nueva petición recibida:', nuevaPeticion);
+            console.log('✅ Nueva petición recibida:', nuevaPeticion);
             break;
           case 'UPDATE_REQUEST':
-            const peticionActualizada = {
-              ...ultimoMensaje.payload,
-              fecha: new Date(ultimoMensaje.payload.timestamp),
-            };
+            // Actualizar solo el estado de la petición
+            const update = ultimoMensaje.payload;
             setPeticiones(prev => 
-              prev.map(r => r.id === peticionActualizada.id ? peticionActualizada : r)
+              prev.map(r => r.id === update.id 
+                ? { ...r, estado: update.status || update.estado }
+                : r
+              )
             );
+            console.log('🔄 Petición actualizada:', update);
             break;
           case 'CONFIG_UPDATED':
-            console.log('Configuración actualizada en servidor');
+            console.log('⚙️ Configuración actualizada en servidor');
             break;
           default:
-            console.log('Mensaje no manejado:', ultimoMensaje);
+            console.log('⚠️ Mensaje no manejado:', ultimoMensaje);
         }
       } catch (error) {
-        console.error('Error al procesar mensaje WebSocket:', error, ultimoMensaje);
+        console.error('❌ Error al procesar mensaje WebSocket:', error, ultimoMensaje);
       }
     }
   }, [ultimoMensaje]);
@@ -202,7 +232,11 @@ function Home() {
 
             <div className="space-y-4">
               {peticiones.map(peticion => (
-                <TarjetaPeticion key={peticion.id} peticion={peticion} />
+                <TarjetaPeticion 
+                  key={peticion.id} 
+                  peticion={peticion}
+                  onActualizarEstado={manejarActualizarEstado}
+                />
               ))}
             </div>
           </div>
@@ -383,9 +417,10 @@ function TarjetaEstadistica({ titulo, valor, icono, color }: PropsTarjetaEstadis
 
 interface PropsTarjetaPeticion {
   peticion: Peticion;
+  onActualizarEstado: (id: string, estado: 'pending' | 'in-progress' | 'completed') => void;
 }
 
-function TarjetaPeticion({ peticion }: PropsTarjetaPeticion) {
+function TarjetaPeticion({ peticion, onActualizarEstado }: PropsTarjetaPeticion) {
   const configTipo = {
     services: { etiqueta: 'Servicios', icono: '🛎️', color: 'var(--services)' },
     'room-service': { etiqueta: 'Room Service', icono: '🍽️', color: 'var(--room-service)' },
@@ -459,7 +494,7 @@ function TarjetaPeticion({ peticion }: PropsTarjetaPeticion) {
         <p className="text-sm text-auto-primary">💬 {peticion.mensaje}</p>
       </div>
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mb-3">
         <span className="text-xs text-auto-tertiary">⏰ {formatearTiempo(peticion.fecha)}</span>
         <span 
           className="px-3 py-1 rounded-lg text-xs font-semibold"
@@ -467,6 +502,74 @@ function TarjetaPeticion({ peticion }: PropsTarjetaPeticion) {
         >
           {estado.etiqueta}
         </span>
+      </div>
+
+      {/* Botones de actualización de estado - Flujo secuencial */}
+      <div className="flex gap-2">
+        {peticion.estado === 'pending' && (
+          <>
+            {/* Solo avanzar a En Progreso */}
+            <button
+              onClick={() => onActualizarEstado(peticion.id, 'in-progress')}
+              className="flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:scale-105 active:scale-95 shadow-md"
+              style={{ backgroundColor: 'var(--hotel-secondary)', color: '#fff' }}
+              title="Comenzar a atender esta petición"
+            >
+              Atender 🔄
+            </button>
+          </>
+        )}
+        
+        {peticion.estado === 'in-progress' && (
+          <>
+            {/* Retroceder a Pendiente */}
+            <button
+              onClick={() => onActualizarEstado(peticion.id, 'pending')}
+              className="flex-1 px-3 py-2 rounded-lg text-sm font-semibold transition-all hover:scale-105 active:scale-95 border-2"
+              style={{ 
+                backgroundColor: 'transparent', 
+                borderColor: 'var(--warning)', 
+                color: 'var(--warning)' 
+              }}
+              title="Regresar a pendiente"
+            >
+              ← Pendiente
+            </button>
+            
+            {/* Avanzar a Completada */}
+            <button
+              onClick={() => onActualizarEstado(peticion.id, 'completed')}
+              className="flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:scale-105 active:scale-95 shadow-md"
+              style={{ backgroundColor: 'var(--success)', color: '#fff' }}
+              title="Marcar como completada"
+            >
+              Completar ✅
+            </button>
+          </>
+        )}
+        
+        {peticion.estado === 'completed' && (
+          <>
+            {/* Retroceder a En Progreso */}
+            <button
+              onClick={() => onActualizarEstado(peticion.id, 'in-progress')}
+              className="flex-1 px-3 py-2 rounded-lg text-sm font-semibold transition-all hover:scale-105 active:scale-95 border-2"
+              style={{ 
+                backgroundColor: 'transparent', 
+                borderColor: 'var(--hotel-secondary)', 
+                color: 'var(--hotel-secondary)' 
+              }}
+              title="Regresar a en progreso"
+            >
+              ← Reabrir
+            </button>
+            
+            <div className="flex-1 px-3 py-2 rounded-lg text-sm font-semibold text-center" 
+                 style={{ backgroundColor: 'var(--success)', color: '#fff', opacity: 0.7 }}>
+              Finalizada ✓
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
