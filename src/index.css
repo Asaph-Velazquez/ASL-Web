@@ -1,58 +1,61 @@
 @import "tailwindcss";
 
 :root {
-  /* Fondos - Tonos madera clara */
-  --bg-primary: #faf7f2;
-  --bg-secondary: #ffffff;
-  --bg-tertiary: rgba(222, 184, 135, 0.15);
+  /* Modo Claro - Tema por defecto */
+  color-scheme: light;
   
-  /* Textos - Tonos tierra */
-  --text-primary: #3e2723;
-  --text-secondary: #5d4037;
-  --text-tertiary: #8d6e63;
+  /* Fondos - Tema Claro */
+  --bg-primary: #f5f5f5;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #e5e5e5;
+  
+  /* Textos - Oscuros */
+  --text-primary: #1a1a1a;
+  --text-secondary: #4a4a4a;
+  --text-tertiary: #707070;
   
   /* Bordes y navegación */
-  --border-color: rgba(161, 136, 127, 0.25);
-  --nav-bg: rgba(250, 247, 242, 0.9);
+  --border-color: rgba(0, 0, 0, 0.1);
+  --nav-bg: rgba(255, 255, 255, 0.95);
   
-  /*Paleta madera + mostaza*/
-  --hotel-primary: #d4a574;       
-  --hotel-secondary: #c89f5d;    
-  --room-service: #e6b24a;       
-  --services: #b8956a;            
-  --problem: #c1694f;            
-  --extra: #8b7355;                
-  --success: #7d9b6e;              
-  --warning: #d9a441;              
+  /* Paleta de Acentos Modernos */
+  --hotel-primary: #2563eb;       
+  --hotel-secondary: #1d4ed8;    
+  --room-service: #059669;       
+  --services: #7c3aed;            
+  --problem: #dc2626;            
+  --extra: #d97706;                
+  --success: #16a34a;              
+  --warning: #ca8a04;              
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
     
-    /* Fondos - Tonos madera oscura */
-    --bg-primary: #1a1410;
-    --bg-secondary: #2a1f1a;
-    --bg-tertiary: rgba(139, 115, 85, 0.2);
+    /* Fondos - Tema Negro Intenso */
+    --bg-primary: #000000;
+    --bg-secondary: #0f0f0f;
+    --bg-tertiary: #1e1e1e;
     
-    /* Textos - Tonos cálidos claros */
-    --text-primary: #f5f1e8;
-    --text-secondary: #d4c4b0;
-    --text-tertiary: #a89580;
+    /* Textos - Blancos y grises */
+    --text-primary: #ffffff;
+    --text-secondary: #d0d0d0;
+    --text-tertiary: #909090;
     
     /* Bordes y navegación */
-    --border-color: rgba(139, 115, 85, 0.3);
-    --nav-bg: rgba(26, 20, 16, 0.9);
+    --border-color: rgba(100, 100, 100, 0.3);
+    --nav-bg: rgba(15, 15, 15, 0.95);
   
-    /* Colores específicos del hotel */
-    --hotel-primary: #e6c18a;         
-    --hotel-secondary: #ddb870;       
-    --room-service: #f5c962;          
-    --services: #d4ad7a;              
-    --problem: #d4836f;              
-    --extra: #a89070;                
-    --success: #95b584;               
-    --warning: #ebb957;              
+    /* Paleta de Acentos Brillantes */
+    --hotel-primary: #60a5fa;         
+    --hotel-secondary: #3b82f6;       
+    --room-service: #34d399;          
+    --services: #a78bfa;              
+    --problem: #f87171;              
+    --extra: #fbbf24;                
+    --success: #4ade80;               
+    --warning: #facc15;              
   }
 }
 
