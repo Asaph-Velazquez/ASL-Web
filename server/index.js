@@ -4,10 +4,12 @@ import { WebSocketServer } from 'ws';
 import mongoose from 'mongoose';
 import cors from 'cors';
 import { config } from 'dotenv';
+import jwt from 'jsonwebtoken';
 import authRoutes from './routes/auth.js';
 import staysRoutes from './routes/stays.js';
 import staffRoutes from './routes/staff.js';
 
+import { Stay } from './models/index.js';
 // Load environment variables
 config();
 
@@ -41,11 +43,8 @@ const server = createServer(app);
 const wss = new WebSocketServer({ noServer: true });
 
 // Estado del servidor WebSocket
-const clientes = new Set();
-let configuracionApp = {
-  nombreHotel: 'Hotel ASL Grand',
-  servicios: []
-};
+// Socket metadata: maps WebSocket -> { roomNumber, guestName, stayId, isStaff }
+const socketMeta = new WeakMap();
 
 // Enviar mensaje a todos los clientes
 function difundir(mensaje) {
@@ -59,7 +58,14 @@ function difundir(mensaje) {
 
 // Manejador de conexiones WebSocket
 wss.on('connection', (ws) => {
-  console.log('✅ Nuevo cliente conectado');
+  const meta = socketMeta.get(ws);
+  if (meta?.roomNumber) {
+    console.log(`🔒 Verified guest connected: ${meta.guestName} (Room ${meta.roomNumber})`);
+  } else if (meta?.isStaff) {
+    console.log('👥 Staff member connected (web dashboard)');
+  } else {
+    console.log('✅ Nuevo cliente conectado');
+  }
   clientes.add(ws);
 
   ws.send(JSON.stringify({
@@ -86,12 +92,18 @@ wss.on('connection', (ws) => {
 
         case 'NEW_REQUEST':
           console.log('📥 Nueva petición recibida:', mensaje.payload);
+          // Inject server-verified roomNumber and guestName
+          const meta = socketMeta.get(ws);
+          const verifiedPayload = {
+            ...mensaje.payload,
+            roomNumber: meta?.roomNumber || mensaje.payload.roomNumber,
+            guestName: meta?.guestName || mensaje.payload.guestName
+          };
           
           difundir({
             type: 'NEW_REQUEST',
-            payload: mensaje.payload
+            payload: verifiedPayload
           });
-          break;
 
         case 'UPDATE_REQUEST':
           console.log('🔄 Petición actualizada:', mensaje.payload);
@@ -120,10 +132,86 @@ wss.on('connection', (ws) => {
 });
 
 // Handle WebSocket upgrade on the same HTTP server
-server.on('upgrade', (request, socket, head) => {
-  wss.handleUpgrade(request, socket, head, (ws) => {
-    wss.emit('connection', ws, request);
-  });
+// Handle WebSocket upgrade with JWT validation
+server.on('upgrade', async (request, socket, head) => {
+  try {
+    const url = new URL(request.url, `http://${request.headers.host}`);
+    const token = url.searchParams.get('token');
+
+    // If no token provided, check if this is a web dashboard connection (staff)
+    if (!token) {
+      const userAgent = request.headers['user-agent'] || '';
+      const isDashboard = !userAgent.includes('okhttp') && !userAgent.includes('Expo');
+      
+      if (isDashboard) {
+        // Allow web dashboard (staff) to connect without guest token
+        wss.handleUpgrade(request, socket, head, (ws) => {
+          socketMeta.set(ws, { isStaff: true });
+          wss.emit('connection', ws, request);
+        });
+        return;
+      } else {
+        // Mobile app must provide token
+        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+        socket.destroy();
+        console.log('❌ WebSocket connection rejected: no token provided');
+        return;
+      }
+    }
+
+    // Validate JWT token
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (err) {
+      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      socket.destroy();
+      console.log('❌ WebSocket connection rejected: invalid token');
+      return;
+    }
+
+    const { stayId, roomNumber, guestName } = decoded;
+
+    // Validate stay in database
+    const stay = await Stay.findOne({ stayId });
+    
+    if (!stay) {
+      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      socket.destroy();
+      console.log('❌ WebSocket connection rejected: stay not found');
+      return;
+    }
+
+    if (!stay.active) {
+      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      socket.destroy();
+      console.log('❌ WebSocket connection rejected: stay inactive');
+      return;
+    }
+
+    const now = new Date();
+    if (stay.checkOut <= now) {
+      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      socket.destroy();
+      console.log('❌ WebSocket connection rejected: stay expired');
+      return;
+    }
+
+    // Token valid, accept connection and store metadata
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      socketMeta.set(ws, {
+        roomNumber: stay.roomNumber,
+        guestName: stay.guestName || guestName,
+        stayId: stay.stayId,
+        isStaff: false
+      });
+      wss.emit('connection', ws, request);
+    });
+  } catch (error) {
+    console.error('❌ Error during WebSocket upgrade:', error);
+    socket.write('HTTP/1.1 500 Internal Server Error\r\n\r\n');
+    socket.destroy();
+  }
 });
 
 // Start server with error handling for EADDRINUSE
