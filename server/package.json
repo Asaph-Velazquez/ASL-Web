@@ -1,17 +1,24 @@
 {
-  "name": "asl-websocket-server",
+  "name": "asl-hotel-server",
   "version": "1.0.0",
-  "description": "Servidor WebSocket para ASL System",
-  "main": "websocket-server.js",
+  "description": "Express + MongoDB + WebSocket server for ASL Hotel system",
+  "main": "index.js",
   "type": "module",
   "scripts": {
-    "start": "node websocket-server.js",
-    "dev": "node --watch websocket-server.js"
+    "start": "node index.js",
+    "dev": "node --watch index.js"
   },
-  "keywords": ["websocket", "asl", "hotel"],
+  "keywords": ["express", "mongodb", "websocket", "asl"],
   "author": "",
-  "license": "MIT",
+  "license": "ISC",
   "dependencies": {
-    "ws": "^8.18.0"
+    "express": "^4.18.2",
+    "mongoose": "^8.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "jsonwebtoken": "^9.0.2",
+    "qrcode": "^1.5.3",
+    "ws": "^8.14.2",
+    "bcryptjs": "^2.4.3"
   }
 }

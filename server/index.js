@@ -126,7 +126,22 @@ server.on('upgrade', (request, socket, head) => {
   });
 });
 
-// Start server
+// Start server with error handling for EADDRINUSE
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`❌ Port ${PORT} is already in use. Trying an alternate port...`);
+    const altPort = parseInt(PORT, 10) === 3001 ? 3002 : parseInt(PORT, 10) + 1;
+    server.listen(altPort, () => {
+      console.log(`🚀 Servidor HTTP + WebSocket iniciado en:`);
+      console.log(`   - HTTP: http://localhost:${altPort}`);
+      console.log(`   - WebSocket: ws://localhost:${altPort}`);
+    });
+  } else {
+    console.error('❌ Server error:', err);
+    process.exit(1);
+  }
+});
+
 server.listen(PORT, () => {
   console.log(`🚀 Servidor HTTP + WebSocket iniciado en:`);
   console.log(`   - HTTP: http://localhost:${PORT}`);

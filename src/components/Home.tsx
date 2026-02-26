@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from 'react-router-dom';
 import { useWebSocket } from "../hooks/useWebSocket";
 
 // Componentes de Iconos SVG
-const HotelIcon = ({ className = "w-6 h-6" }) => (
+const HotelIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" fill="currentColor" className="bi bi-buildings" viewBox="0 0 16 16">
     <path d="M14.763.075A.5.5 0 0 1 15 .5v15a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5V14h-1v1.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5V10a.5.5 0 0 1 .342-.474L6 7.64V4.5a.5.5 0 0 1 .276-.447l8-4a.5.5 0 0 1 .487.022M6 8.694 1 10.36V15h5zM7 15h2v-1.5a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 .5.5V15h2V1.309l-7 3.5z"/>
     <path d="M2 11h1v1H2zm2 0h1v1H4zm-2 2h1v1H2zm2 0h1v1H4zm4-4h1v1H8zm2 0h1v1h-1zm-2 2h1v1H8zm2 0h1v1h-1zm2-2h1v1h-1zm0 2h1v1h-1zM8 7h1v1H8zm2 0h1v1h-1zm2 0h1v1h-1zM8 5h1v1H8zm2 0h1v1h-1zm2 0h1v1h-1zm0-2h1v1h-1z"/>
@@ -137,7 +138,8 @@ interface ConfiguracionApp {
 }
 
 function Home() {
-  const URL_WS = "ws://localhost:8080";
+  const navigate = useNavigate();
+  const URL_WS = import.meta.env.VITE_WS_URL || 'ws://localhost:8080';
   const { estaConectado, enviarMensaje, ultimoMensaje } = useWebSocket(URL_WS);
 
   const [peticiones, setPeticiones] = useState<Peticion[]>([]);
@@ -295,50 +297,61 @@ function Home() {
 
   return (
     <div className="min-h-screen bg-auto-primary">
-      <header className="sticky top-0 z-50 backdrop-blur-md bg-auto-secondary/95 border-b border-auto shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
+      <header className="sticky top-0 z-50 backdrop-blur-xl bg-auto-secondary/90 border-b border-auto shadow-sm">
+        <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <div
-                className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg"
+                className="w-12 h-12 rounded-xl flex items-center justify-center shadow-md transition-all hover:scale-105"
                 style={{
                   background:
                     "linear-gradient(135deg, var(--hotel-primary), var(--hotel-secondary))",
                 }}
               >
-                <HotelIcon className="w-8 h-8 text-white" />
+                <HotelIcon />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-auto-primary">
+                <h1 className="text-xl font-bold text-auto-primary tracking-tight">
                   Panel de Control ASL
                 </h1>
-                <p className="text-sm text-auto-secondary">
-                  Gestión de Peticiones y Configuración
+                <p className="text-xs text-auto-tertiary">
+                  Gestión en tiempo real
                 </p>
               </div>
             </div>
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-auto-tertiary">
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={() => navigate('/stays')}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:scale-105 flex items-center gap-1.5 text-white"
+                style={{ backgroundColor: 'var(--hotel-primary)' }}
+                title="Manage guest stays and QR codes"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" className="w-3.5 h-3.5" viewBox="0 0 16 16">
+                  <path d="M2 2h2v2H2z"/>
+                  <path d="M6 0v6H0V0zM5 1H1v4h4zM4 12H2v2h2z"/>
+                  <path d="M6 10v6H0v-6zm-5 1v4h4v-4zm11-9h2v2h-2z"/>
+                  <path d="M10 0v6h6V0zm5 1v4h-4V1zM8 1V0h1v2H8v2H7V1zm0 5V4h1v2zM6 8V7h1V6h1v2h1V7h5v1h-4v1H7V8zm0 0v1H2V8H1v1H0V7h3v1zm10 1h-1V7h1zm-1 0h-1v2h2v-1h-1zm-4 0h2v1h-1v1h-1zm2 3v-1h-1v1h-1v1H9v1h3v-2zm0 0h3v1h-2v1h-1zm-4-1v1h1v-2H7v1z"/>
+                  <path d="M7 12h1v3h4v1H7zm9 2v2h-3v-1h2v-1z"/>
+                </svg>
+                Manage Stays
+              </button>
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-auto-tertiary/50 border border-auto">
                 <div
-                  className={`w-3 h-3 rounded-full ${estaConectado ? "bg-green-500 animate-pulse" : "bg-red-500"}`}
+                  className={`w-2 h-2 rounded-full ${estaConectado ? "bg-green-500 animate-pulse" : "bg-red-500"}`}
                 ></div>
-                <span className="text-sm font-semibold text-auto-secondary">
-                  {estaConectado ? "Conectado" : "Desconectado"}
+                <span className="text-xs font-medium text-auto-secondary">
+                  {estaConectado ? "En línea" : "Desconectado"}
                 </span>
-              </div>
-              <div className="text-right">
-                <p className="text-sm text-auto-tertiary">Admin</p>
-                <p className="text-xs text-auto-tertiary">En línea 🟢</p>
               </div>
             </div>
           </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="max-w-7xl mx-auto px-6 py-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <TarjetaEstadistica
-            titulo="Peticiones Pendientes"
+            titulo="Pendientes"
             valor={contadorPendientes}
             icono={<HourglassIcon />}
             color="var(--warning)"
@@ -357,45 +370,65 @@ function Home() {
           />
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-bold text-auto-primary flex items-center gap-2">
-                <InboxIcon className="w-7 h-7" />
-                Peticiones Entrantes
-              </h2>
-              <span className="px-4 py-2 rounded-xl bg-auto-tertiary text-auto-primary font-bold">
-                {peticiones.length} Total
-              </span>
-            </div>
+        <div className="grid lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <div className="bg-auto-secondary rounded-xl shadow-sm border border-auto p-6 mb-4">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--hotel-primary)' }}>
+                    <InboxIcon className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-auto-primary">
+                      Peticiones
+                    </h2>
+                    <p className="text-xs text-auto-tertiary">{peticiones.length} solicitudes totales</p>
+                  </div>
+                </div>
+              </div>
 
-            <div className="space-y-4">
-              {peticiones.map((peticion) => (
-                <TarjetaPeticion
-                  key={peticion.id}
-                  peticion={peticion}
-                  onActualizarEstado={manejarActualizarEstado}
-                />
-              ))}
+              <div className="space-y-3 max-h-[calc(100vh-280px)] overflow-y-auto custom-scrollbar pr-2">
+                {peticiones.length === 0 ? (
+                  <div className="text-center py-12 text-auto-tertiary">
+                    <InboxIcon className="w-16 h-16 mx-auto mb-3 opacity-30" />
+                    <p className="text-sm">No hay peticiones en este momento</p>
+                  </div>
+                ) : (
+                  peticiones.map((peticion) => (
+                    <TarjetaPeticion
+                      key={peticion.id}
+                      peticion={peticion}
+                      onActualizarEstado={manejarActualizarEstado}
+                    />
+                  ))
+                )}
+              </div>
             </div>
           </div>
 
           <div className="lg:col-span-1">
-            <div className="bg-auto-secondary rounded-2xl shadow-xl border-2 border-auto p-6 sticky top-24">
-              <h2 className="text-xl font-bold text-auto-primary mb-6 flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 16 16">
-                  <path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492M5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0" />
-                  <path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52zm-2.633.283c.246-.835 1.428-.835 1.674 0l.094.319a1.873 1.873 0 0 0 2.693 1.115l.291-.16c.764-.415 1.6.42 1.184 1.185l-.159.292a1.873 1.873 0 0 0 1.116 2.692l.318.094c.835.246.835 1.428 0 1.674l-.319.094a1.873 1.873 0 0 0-1.115 2.693l.16.291c.415.764-.42 1.6-1.185 1.184l-.291-.159a1.873 1.873 0 0 0-2.693 1.116l-.094.318c-.246.835-1.428.835-1.674 0l-.094-.319a1.873 1.873 0 0 0-2.692-1.115l-.292.16c-.764.415-1.6-.42-1.184-1.185l.159-.291A1.873 1.873 0 0 0 1.945 8.93l-.319-.094c-.835-.246-.835-1.428 0-1.674l.319-.094A1.873 1.873 0 0 0 3.06 4.377l-.16-.292c-.415-.764.42-1.6 1.185-1.184l.292.159a1.873 1.873 0 0 0 2.692-1.115z" />
-                </svg>
-                Configuración de Servicios
-              </h2>
+            <div className="bg-auto-secondary rounded-xl shadow-sm border border-auto p-5 sticky top-24">
+              <div className="flex items-center gap-2 mb-5 pb-4 border-b border-auto">
+                <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--hotel-primary)' }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="white" viewBox="0 0 16 16">
+                    <path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492M5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0" />
+                    <path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52zm-2.633.283c.246-.835 1.428-.835 1.674 0l.094.319a1.873 1.873 0 0 0 2.693 1.115l.291-.16c.764-.415 1.6.42 1.184 1.185l-.159.292a1.873 1.873 0 0 0 1.116 2.692l.318.094c.835.246.835 1.428 0 1.674l-.319.094a1.873 1.873 0 0 0-1.115 2.693l.16.291c.415.764-.42 1.6-1.185 1.184l-.291-.159a1.873 1.873 0 0 0-2.693 1.116l-.094.318c-.246.835-1.428.835-1.674 0l-.094-.319a1.873 1.873 0 0 0-2.692-1.115l-.292.16c-.764.415-1.6-.42-1.184-1.185l.159-.291A1.873 1.873 0 0 0 1.945 8.93l-.319-.094c-.835-.246-.835-1.428 0-1.674l.319-.094A1.873 1.873 0 0 0 3.06 4.377l-.16-.292c-.415-.764.42-1.6 1.185-1.184l.292.159a1.873 1.873 0 0 0 2.692-1.115z" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-auto-primary">
+                    Configuración
+                  </h2>
+                  <p className="text-xs text-auto-tertiary">Gestionar servicios</p>
+                </div>
+              </div>
 
-              <div className="grid grid-cols-2 gap-2 mb-6">
+              <div className="grid grid-cols-2 gap-2 mb-5">
                 <button
                   onClick={() => setPestanaActiva("services")}
-                  className={`px-4 py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
+                  className={`px-3 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-1.5 text-xs ${
                     pestanaActiva === "services"
-                      ? "text-white shadow-lg"
+                      ? "text-white shadow-md scale-105"
                       : "bg-auto-tertiary text-auto-secondary hover:bg-auto"
                   }`}
                   style={
@@ -404,13 +437,13 @@ function Home() {
                       : {}
                   }
                 >
-                  <BellIcon /> Servicios
+                  <BellIcon className="w-3.5 h-3.5" /> Servicios
                 </button>
                 <button
                   onClick={() => setPestanaActiva("room-service")}
-                  className={`px-4 py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
+                  className={`px-3 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-1.5 text-xs ${
                     pestanaActiva === "room-service"
-                      ? "text-white shadow-lg"
+                      ? "text-white shadow-md scale-105"
                       : "bg-auto-tertiary text-auto-secondary hover:bg-auto"
                   }`}
                   style={
@@ -419,13 +452,13 @@ function Home() {
                       : {}
                   }
                 >
-                  <FoodIcon /> Room Service
+                  <FoodIcon className="w-3.5 h-3.5" /> Room
                 </button>
                 <button
                   onClick={() => setPestanaActiva("problem")}
-                  className={`px-4 py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
+                  className={`px-3 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-1.5 text-xs ${
                     pestanaActiva === "problem"
-                      ? "text-white shadow-lg"
+                      ? "text-white shadow-md scale-105"
                       : "bg-auto-tertiary text-auto-secondary hover:bg-auto"
                   }`}
                   style={
@@ -434,13 +467,13 @@ function Home() {
                       : {}
                   }
                 >
-                  <WarningIcon /> Problemas
+                  <WarningIcon className="w-3.5 h-3.5" /> Problemas
                 </button>
                 <button
                   onClick={() => setPestanaActiva("extra")}
-                  className={`px-4 py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
+                  className={`px-3 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-1.5 text-xs ${
                     pestanaActiva === "extra"
-                      ? "text-white shadow-lg"
+                      ? "text-white shadow-md scale-105"
                       : "bg-auto-tertiary text-auto-secondary hover:bg-auto"
                   }`}
                   style={
@@ -449,18 +482,18 @@ function Home() {
                       : {}
                   }
                 >
-                  <SparklesIcon /> Extra
+                  <SparklesIcon className="w-3.5 h-3.5" /> Extra
                 </button>
               </div>
 
-              <div className="bg-auto-tertiary rounded-xl p-4 mb-4">
-                <h3 className="font-bold text-auto-primary mb-3 flex items-center gap-2">
-                  <PlusIcon /> Agregar Nuevo Servicio
+              <div className="bg-auto-tertiary/50 rounded-lg p-4 mb-4 border border-auto">
+                <h3 className="font-semibold text-auto-primary mb-3 flex items-center gap-2 text-sm">
+                  <PlusIcon className="w-4 h-4" /> Nuevo Servicio
                 </h3>
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <input
                     type="text"
-                    placeholder="Nombre (ej: Parking)"
+                    placeholder="Nombre del servicio"
                     value={nuevoServicio.nombre}
                     onChange={(e) =>
                       setNuevoServicio({
@@ -468,7 +501,7 @@ function Home() {
                         nombre: e.target.value,
                       })
                     }
-                    className="w-full px-3 py-2 rounded-lg bg-auto-secondary border-2 border-auto text-auto-primary text-sm focus:outline-none focus:ring-2"
+                    className="w-full px-3 py-2 rounded-lg bg-auto-secondary border border-auto text-auto-primary text-xs focus:outline-none focus:ring-2 focus:ring-opacity-50"
                     style={
                       {
                         "--tw-ring-color": "var(--hotel-primary)",
@@ -485,7 +518,7 @@ function Home() {
                         descripcion: e.target.value,
                       })
                     }
-                    className="w-full px-3 py-2 rounded-lg bg-auto-secondary border-2 border-auto text-auto-primary text-sm focus:outline-none focus:ring-2"
+                    className="w-full px-3 py-2 rounded-lg bg-auto-secondary border border-auto text-auto-primary text-xs focus:outline-none focus:ring-2 focus:ring-opacity-50"
                     style={
                       {
                         "--tw-ring-color": "var(--hotel-primary)",
@@ -494,7 +527,7 @@ function Home() {
                   />
                   <input
                     type="text"
-                    placeholder="Emoji/Icono (ej: 🅿️)"
+                    placeholder="Icono (emoji)"
                     value={nuevoServicio.icono}
                     onChange={(e) =>
                       setNuevoServicio({
@@ -502,7 +535,7 @@ function Home() {
                         icono: e.target.value,
                       })
                     }
-                    className="w-full px-3 py-2 rounded-lg bg-auto-secondary border-2 border-auto text-auto-primary text-sm focus:outline-none focus:ring-2"
+                    className="w-full px-3 py-2 rounded-lg bg-auto-secondary border border-auto text-auto-primary text-xs focus:outline-none focus:ring-2 focus:ring-opacity-50"
                     style={
                       {
                         "--tw-ring-color": "var(--hotel-primary)",
@@ -511,57 +544,57 @@ function Home() {
                   />
                   <button
                     onClick={manejarAgregarServicio}
-                    className="w-full px-4 py-2 rounded-lg font-semibold text-white shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                    className="w-full px-3 py-2 rounded-lg font-medium text-white shadow-sm hover:shadow-md transition-all text-xs flex items-center justify-center gap-2"
                     style={{
                       background:
                         "linear-gradient(135deg, var(--hotel-primary), var(--hotel-secondary))",
                     }}
                   >
-                    <PlusIcon /> Agregar
+                    <PlusIcon className="w-3.5 h-3.5" /> Agregar
                   </button>
                 </div>
               </div>
 
-              <div className="space-y-2 max-h-96 overflow-y-auto">
-                <h3 className="font-bold text-auto-primary mb-2 sticky top-0 bg-auto-secondary py-2">
-                  Servicios Actuales
+              <div className="space-y-2 max-h-80 overflow-y-auto custom-scrollbar">
+                <h3 className="font-semibold text-auto-primary mb-2 sticky top-0 bg-auto-secondary py-2 text-sm">
+                  Lista de Servicios
                 </h3>
                 {configuracionApp.servicios
                   .filter((s) => s.categoria === pestanaActiva)
                   .map((servicio) => (
                     <div
                       key={servicio.id}
-                      className="bg-auto-tertiary rounded-lg p-3 flex items-center justify-between gap-2"
+                      className="bg-auto-tertiary/50 rounded-lg p-2.5 flex items-center justify-between gap-2 border border-auto hover:bg-auto-tertiary transition-colors"
                     >
-                      <div className="flex items-center gap-2 flex-1">
-                        <span className="text-2xl">{servicio.icono}</span>
-                        <div className="flex-1">
-                          <p className="font-semibold text-sm text-auto-primary">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <span className="text-xl flex-shrink-0">{servicio.icono}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-xs text-auto-primary truncate">
                             {servicio.nombre}
                           </p>
-                          <p className="text-xs text-auto-secondary">
+                          <p className="text-xs text-auto-tertiary truncate">
                             {servicio.descripcion}
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
                         <button
                           onClick={() =>
                             manejarCambiarEstadoServicio(servicio.id)
                           }
-                          className={`px-2 py-1 rounded-md text-xs font-bold flex items-center justify-center ${
+                          className={`p-1.5 rounded-md text-xs font-bold flex items-center justify-center transition-all ${
                             servicio.activo
-                              ? "bg-green-500 text-white"
-                              : "bg-gray-400 text-white"
+                              ? "bg-green-500 text-white hover:bg-green-600"
+                              : "bg-gray-400 text-white hover:bg-gray-500"
                           }`}
                         >
-                          {servicio.activo ? <CheckIcon /> : "✗"}
+                          {servicio.activo ? <CheckIcon className="w-3 h-3" /> : <span className="text-xs">✗</span>}
                         </button>
                         <button
                           onClick={() => manejarEliminarServicio(servicio.id)}
-                          className="px-2 py-1 rounded-md text-xs font-bold bg-red-500 text-white hover:bg-red-600 flex items-center justify-center"
+                          className="p-1.5 rounded-md text-xs font-bold bg-red-500 text-white hover:bg-red-600 flex items-center justify-center transition-all"
                         >
-                          <TrashIcon />
+                          <TrashIcon className="w-3 h-3" />
                         </button>
                       </div>
                     </div>
@@ -570,13 +603,13 @@ function Home() {
 
               <button
                 onClick={manejarGuardarConfiguracion}
-                className="w-full px-6 py-4 rounded-xl font-bold text-white shadow-lg hover:shadow-xl transition-all hover:scale-105 mt-6 flex items-center justify-center gap-2"
+                className="w-full px-4 py-3 rounded-lg font-semibold text-white shadow-sm hover:shadow-md transition-all hover:scale-[1.02] mt-5 flex items-center justify-center gap-2 text-sm"
                 style={{
                   background:
                     "linear-gradient(135deg, var(--hotel-primary), var(--hotel-secondary))",
                 }}
               >
-                <SaveIcon /> Guardar Configuración
+                <SaveIcon className="w-4 h-4" /> Guardar Configuración
               </button>
             </div>
           </div>
@@ -601,17 +634,22 @@ function TarjetaEstadistica({
   color,
 }: PropsTarjetaEstadistica) {
   return (
-    <div className="bg-auto-secondary rounded-2xl p-6 shadow-lg border-2 border-auto hover:scale-105 transition-transform">
+    <div className="bg-auto-secondary rounded-xl p-5 shadow-sm border border-auto hover:shadow-md transition-all group">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm text-auto-tertiary font-medium mb-1">
+          <p className="text-xs text-auto-tertiary font-medium mb-1">
             {titulo}
           </p>
-          <p className="text-4xl font-extrabold" style={{ color }}>
+          <p className="text-3xl font-bold" style={{ color }}>
             {valor}
           </p>
         </div>
-        <div style={{ color }}>{icono}</div>
+        <div 
+          className="p-3 rounded-xl transition-all group-hover:scale-110" 
+          style={{ color, backgroundColor: `${color}15` }}
+        >
+          {icono}
+        </div>
       </div>
     </div>
   );
@@ -671,57 +709,57 @@ function TarjetaPeticion({
 
   return (
     <div
-      className="bg-auto-secondary rounded-xl p-5 shadow-lg border-l-4 hover:shadow-2xl transition-all"
-      style={{ borderLeftColor: config.color }}
+      className="bg-auto-secondary rounded-lg p-4 shadow-sm border border-auto hover:shadow-md transition-all"
+      style={{ borderLeftWidth: '3px', borderLeftColor: config.color }}
     >
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3">
           <div
-            className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl"
-            style={{ backgroundColor: config.color }}
+            className="w-10 h-10 rounded-lg flex items-center justify-center transition-transform hover:scale-110"
+            style={{ backgroundColor: `${config.color}20`, color: config.color }}
           >
             {config.icono}
           </div>
           <div>
-            <h3 className="font-bold text-lg text-auto-primary">
+            <h3 className="font-bold text-sm text-auto-primary">
               Habitación {peticion.numeroHabitacion}
             </h3>
-            <p className="text-sm text-auto-secondary">
+            <p className="text-xs text-auto-secondary">
               {peticion.nombreHuesped}
             </p>
           </div>
         </div>
-        <div className="flex flex-col items-end gap-2">
+        <div className="flex flex-col items-end gap-1.5">
           <span
-            className="px-3 py-1 rounded-full text-xs font-bold text-white"
+            className="px-2.5 py-1 rounded-md text-xs font-semibold text-white"
             style={{ backgroundColor: config.color }}
           >
             {config.etiqueta}
           </span>
           {peticion.prioridad === "urgent" && (
-            <span className="px-2 py-1 rounded-md text-xs font-bold bg-red-500 text-white animate-pulse flex items-center gap-1">
-              <ExclamationTriangleIcon className="w-4 h-4" />
+            <span className="px-2 py-0.5 rounded-md text-xs font-bold bg-red-500 text-white animate-pulse flex items-center gap-1">
+              <ExclamationTriangleIcon className="w-3 h-3" />
               URGENTE
             </span>
           )}
         </div>
       </div>
 
-      <div className="bg-auto-tertiary rounded-lg p-4 mb-3 border border-auto">
+      <div className="bg-auto-tertiary/50 rounded-lg p-3 mb-3 border border-auto">
         <p className="text-sm text-auto-primary flex items-start gap-2 leading-relaxed">
-          <ChatIcon className="mt-1 flex-shrink-0 text-auto-secondary w-3.5 h-3.5" />
+          <ChatIcon className="mt-0.5 flex-shrink-0 text-auto-secondary w-3.5 h-3.5" />
           <span className="flex-1">{peticion.mensaje}</span>
         </p>
       </div>
 
       <div className="flex items-center justify-between mb-3">
         <span className="text-xs text-auto-tertiary flex items-center gap-1">
-          <ClockIcon />
+          <ClockIcon className="w-3.5 h-3.5" />
           {formatearTiempo(peticion.fecha)}
         </span>
         <span
-          className="px-3 py-1 rounded-lg text-xs font-semibold"
-          style={{ backgroundColor: estado.color, color: "#fff" }}
+          className="px-2.5 py-1 rounded-md text-xs font-medium"
+          style={{ backgroundColor: `${estado.color}20`, color: estado.color }}
         >
           {estado.etiqueta}
         </span>
@@ -734,7 +772,7 @@ function TarjetaPeticion({
             {/* Solo avanzar a En Progreso */}
             <button
               onClick={() => onActualizarEstado(peticion.id, "in-progress")}
-              className="flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:scale-105 active:scale-95 shadow-md flex items-center justify-center gap-2"
+              className="flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all hover:scale-[1.02] active:scale-95 shadow-sm flex items-center justify-center gap-1.5"
               style={{
                 backgroundColor: "var(--hotel-secondary)",
                 color: "#fff",
@@ -751,7 +789,7 @@ function TarjetaPeticion({
             {/* Retroceder a Pendiente */}
             <button
               onClick={() => onActualizarEstado(peticion.id, "pending")}
-              className="flex-1 px-3 py-2 rounded-lg text-sm font-semibold transition-all hover:scale-105 active:scale-95 border-2 flex items-center justify-center gap-1"
+              className="flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all hover:scale-[1.02] active:scale-95 border flex items-center justify-center gap-1"
               style={{
                 backgroundColor: "transparent",
                 borderColor: "var(--warning)",
@@ -759,17 +797,17 @@ function TarjetaPeticion({
               }}
               title="Regresar a pendiente"
             >
-              <ArrowLeftIcon /> Pendiente
+              <ArrowLeftIcon className="w-3 h-3" /> Pendiente
             </button>
 
             {/* Avanzar a Completada */}
             <button
               onClick={() => onActualizarEstado(peticion.id, "completed")}
-              className="flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:scale-105 active:scale-95 shadow-md flex items-center justify-center gap-2"
+              className="flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all hover:scale-[1.02] active:scale-95 shadow-sm flex items-center justify-center gap-1.5"
               style={{ backgroundColor: "var(--success)", color: "#fff" }}
               title="Marcar como completada"
             >
-              Completar <CheckCircleIcon />
+              Completar <CheckCircleIcon className="w-4 h-4" />
             </button>
           </>
         )}
@@ -779,7 +817,7 @@ function TarjetaPeticion({
             {/* Retroceder a En Progreso */}
             <button
               onClick={() => onActualizarEstado(peticion.id, "in-progress")}
-              className="flex-1 px-3 py-2 rounded-lg text-sm font-semibold transition-all hover:scale-105 active:scale-95 border-2 flex items-center justify-center gap-1"
+              className="flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all hover:scale-[1.02] active:scale-95 border flex items-center justify-center gap-1"
               style={{
                 backgroundColor: "transparent",
                 borderColor: "var(--hotel-secondary)",
@@ -787,18 +825,18 @@ function TarjetaPeticion({
               }}
               title="Regresar a en progreso"
             >
-              <ArrowLeftIcon /> Reabrir
+              <ArrowLeftIcon className="w-3 h-3" /> Reabrir
             </button>
 
             <div
-              className="flex-1 px-3 py-2 rounded-lg text-sm font-semibold text-center flex items-center justify-center gap-2"
+              className="flex-1 px-3 py-2 rounded-lg text-xs font-semibold text-center flex items-center justify-center gap-1.5"
               style={{
                 backgroundColor: "var(--success)",
                 color: "#fff",
-                opacity: 0.7,
+                opacity: 0.6,
               }}
             >
-              Finalizada <CheckIcon />
+              Finalizada <CheckIcon className="w-3 h-3" />
             </div>
           </>
         )}
