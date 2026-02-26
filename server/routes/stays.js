@@ -1,6 +1,7 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import { Stay } from '../models/index.js';
+import { generateQRDataURL } from '../utils/qr.js';
 
 const router = express.Router();
 
@@ -84,6 +85,31 @@ router.get('/', async (req, res) => {
 });
 
 /**
+ * GET /api/stays/:stayId/qr
+ * Generates a QR code image containing the stay's JWT token
+ * Returns base64 data URL of PNG QR code
+ */
+  router.get('/:stayId/qr', async (req, res) => {
+  try {
+    const { stayId } = req.params;
+
+    const stay = await Stay.findOne({ stayId });
+
+    if (!stay) {
+      return res.status(404).json({ error: 'Stay not found' });
+    }
+
+    // Generate QR code from the JWT token
+    const qrDataURL = await generateQRDataURL(stay.qrToken);
+
+    return res.json({ qrCode: qrDataURL, stayId });
+  } catch (error) {
+    console.error('Error generating QR code:', error);
+    return res.status(500).json({ error: 'Failed to generate QR code' });
+  }
+});
+
+/**
  * PATCH /api/stays/:stayId/end
  * Sets Stay.active = false
  */
@@ -106,9 +132,9 @@ router.patch('/:stayId/end', async (req, res) => {
     console.error('Error ending stay:', error);
     return res.status(500).json({ error: 'Failed to end stay' });
   }
-});
+ });
 
-/**
+ /**
  * DELETE /api/stays/:stayId
  * Deletes the stay document
  */
