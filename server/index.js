@@ -45,6 +45,11 @@ const wss = new WebSocketServer({ noServer: true });
 // Estado del servidor WebSocket
 // Socket metadata: maps WebSocket -> { roomNumber, guestName, stayId, isStaff }
 const socketMeta = new WeakMap();
+const clientes = new Set();
+let configuracionApp = {
+  nombreHotel: 'Hotel ASL Grand',
+  servicios: []
+};
 
 // Enviar mensaje a todos los clientes
 function difundir(mensaje) {
@@ -138,7 +143,31 @@ server.on('upgrade', async (request, socket, head) => {
     const url = new URL(request.url, `http://${request.headers.host}`);
     const token = url.searchParams.get('token');
 
-    // If no token provided, check if this is a web dashboard connection (staff)
+    // If no token provided, check if this is a web dashboard or mobile connection
+    if (!token) {
+      const userAgent = request.headers['user-agent'] || '';
+      const isMobileApp = userAgent.includes('okhttp') || userAgent.includes('Expo') || userAgent.includes('ReactNative');
+      
+      if (isMobileApp) {
+        // Allow mobile apps to connect without token initially (will be authenticated per-message)
+        wss.handleUpgrade(request, socket, head, (ws) => {
+          socketMeta.set(ws, { isStaff: false, isMobile: true });
+          wss.emit('connection', ws, request);
+        });
+        return;
+      }
+      
+      // Web dashboard must have token or is staff
+      const isDashboard = true;
+      if (isDashboard) {
+        // Allow web dashboard (staff) to connect without guest token
+        wss.handleUpgrade(request, socket, head, (ws) => {
+          socketMeta.set(ws, { isStaff: true });
+          wss.emit('connection', ws, request);
+        });
+        return;
+      }
+    }
     if (!token) {
       const userAgent = request.headers['user-agent'] || '';
       const isDashboard = !userAgent.includes('okhttp') && !userAgent.includes('Expo');
