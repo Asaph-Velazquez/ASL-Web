@@ -1,57 +1,30 @@
 import { useState, useEffect } from "react";
+import {
+  BsCalendar3,
+  BsDownload,
+  BsPrinter,
+  BsQrCode,
+  BsStopCircle,
+  BsTrash,
+  BsXLg,
+} from "react-icons/bs";
 
-// Icon Components
-const QrCodeIcon = ({ className = "w-6 h-6" }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" className={className} viewBox="0 0 16 16">
-    <path d="M2 2h2v2H2z"/>
-    <path d="M6 0v6H0V0zM5 1H1v4h4zM4 12H2v2h2z"/>
-    <path d="M6 10v6H0v-6zm-5 1v4h4v-4zm11-9h2v2h-2z"/>
-    <path d="M10 0v6h6V0zm5 1v4h-4V1zM8 1V0h1v2H8v2H7V1zm0 5V4h1v2zM6 8V7h1V6h1v2h1V7h5v1h-4v1H7V8zm0 0v1H2V8H1v1H0V7h3v1zm10 1h-1V7h1zm-1 0h-1v2h2v-1h-1zm-4 0h2v1h-1v1h-1zm2 3v-1h-1v1h-1v1H9v1h3v-2zm0 0h3v1h-2v1h-1zm-4-1v1h1v-2H7v1z"/>
-    <path d="M7 12h1v3h4v1H7zm9 2v2h-3v-1h2v-1z"/>
-  </svg>
-);
+// Componentes de iconos
+const QrCodeIcon = ({ className = "w-6 h-6" }) => <BsQrCode className={className} />;
 
-const CalendarIcon = ({ className = "w-5 h-5" }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" className={className} viewBox="0 0 16 16">
-    <path d="M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5M1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4z"/>
-  </svg>
-);
+const CalendarIcon = ({ className = "w-5 h-5" }) => <BsCalendar3 className={className} />;
 
-const TrashIcon = ({ className = "w-4 h-4" }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" className={className} viewBox="0 0 16 16">
-    <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0z"/>
-    <path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4zM2.5 3h11V2h-11z"/>
-  </svg>
-);
+const TrashIcon = ({ className = "w-4 h-4" }) => <BsTrash className={className} />;
 
-const StopCircleIcon = ({ className = "w-4 h-4" }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" className={className} viewBox="0 0 16 16">
-    <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
-    <path d="M5 6.5A1.5 1.5 0 0 1 6.5 5h3A1.5 1.5 0 0 1 11 6.5v3A1.5 1.5 0 0 1 9.5 11h-3A1.5 1.5 0 0 1 5 9.5z"/>
-  </svg>
-);
+const StopCircleIcon = ({ className = "w-4 h-4" }) => <BsStopCircle className={className} />;
 
-const PrinterIcon = ({ className = "w-4 h-4" }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" className={className} viewBox="0 0 16 16">
-    <path d="M2.5 8a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1"/>
-    <path d="M5 1a2 2 0 0 0-2 2v2H2a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h1v1a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-1h1a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-1V3a2 2 0 0 0-2-2zM4 3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2H4zm1 5a2 2 0 0 0-2 2v1H2a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v-1a2 2 0 0 0-2-2zm7 2v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1"/>
-  </svg>
-);
+const PrinterIcon = ({ className = "w-4 h-4" }) => <BsPrinter className={className} />;
 
-const DownloadIcon = ({ className = "w-4 h-4" }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" className={className} viewBox="0 0 16 16">
-    <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5"/>
-    <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708z"/>
-  </svg>
-);
+const DownloadIcon = ({ className = "w-4 h-4" }) => <BsDownload className={className} />;
 
-const CloseIcon = ({ className = "w-5 h-5" }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" className={className} viewBox="0 0 16 16">
-    <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8z"/>
-  </svg>
-);
+const CloseIcon = ({ className = "w-5 h-5" }) => <BsXLg className={className} />;
 
-// Types
+// Tipos
 interface Stay {
   stayId: string;
   roomNumber: string;
@@ -75,7 +48,7 @@ function StayManagement() {
 
   const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'http://localhost:3001/api';
 
-  // Fetch all stays
+  // Obtener todas las estancias
   const fetchStays = async () => {
     try {
       setLoading(true);
@@ -91,12 +64,12 @@ function StayManagement() {
     }
   };
 
-  // Initial load
+  // Carga inicial
   useEffect(() => {
     fetchStays();
   }, []);
 
-  // Create new stay
+  // Crear nueva estancia
   const handleCreateStay = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!roomNumber || !checkIn || !checkOut) {
@@ -120,21 +93,21 @@ function StayManagement() {
 
       const newStay = await response.json();
       
-      // Fetch QR code for the new stay
+      // Obtener el codigo QR de la nueva estancia
       const qrResponse = await fetch(`${API_BASE}/stays/${newStay.stayId}/qr`);
       if (!qrResponse.ok) throw new Error("Failed to generate QR code");
       const qrData = await qrResponse.json();
 
-      // Show QR modal
+      // Mostrar modal del QR
       setCurrentQr({ stayId: newStay.stayId, qrCode: qrData.qrCode });
       setQrModalOpen(true);
 
-      // Reset form
+      // Reiniciar formulario
       setRoomNumber("");
       setCheckIn("");
       setCheckOut("");
 
-      // Refresh stays list
+      // Refrescar lista de estancias
       await fetchStays();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create stay");
@@ -143,7 +116,7 @@ function StayManagement() {
     }
   };
 
-  // End stay
+  // Finalizar estancia
   const handleEndStay = async (stayId: string) => {
     if (!confirm("Are you sure you want to end this stay?")) return;
 
@@ -163,7 +136,7 @@ function StayManagement() {
     }
   };
 
-  // Delete stay
+  // Eliminar estancia
   const handleDeleteStay = async (stayId: string) => {
     if (!confirm("Are you sure you want to delete this stay?")) return;
 
@@ -183,12 +156,12 @@ function StayManagement() {
     }
   };
 
-  // Print QR
+  // Imprimir QR
   const handlePrintQr = () => {
     window.print();
   };
 
-  // Download QR
+  // Descargar QR
   const handleDownloadQr = () => {
     if (!currentQr) return;
     const link = document.createElement("a");
@@ -199,7 +172,7 @@ function StayManagement() {
     document.body.removeChild(link);
   };
 
-  // Format date for display
+  // Formatear fecha para mostrar
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",
@@ -210,7 +183,7 @@ function StayManagement() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: "var(--color-bg)", color: "var(--color-text)" }}>
-      {/* Header */}
+      {/* Encabezado */}
       <header className="border-b" style={{ backgroundColor: "var(--color-bg-secondary)", borderColor: "var(--color-border)" }}>
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center gap-3">
@@ -227,7 +200,7 @@ function StayManagement() {
 
       <div className="max-w-7xl mx-auto px-6 py-6">
         <div className="grid lg:grid-cols-3 gap-6">
-          {/* Create Stay Form */}
+          {/* Formulario de nueva estancia */}
           <div className="lg:col-span-1">
             <div className="bg-auto-secondary rounded-xl shadow-sm border border-auto p-6">
               <div className="flex items-center gap-2 mb-5 pb-4 border-b border-auto">
@@ -309,7 +282,7 @@ function StayManagement() {
             </div>
           </div>
 
-          {/* Active Stays List */}
+          {/* Lista de estancias activas */}
           <div className="lg:col-span-2">
             <div className="bg-auto-secondary rounded-xl shadow-sm border border-auto p-6">
               <div className="flex items-center justify-between mb-5 pb-4 border-b border-auto">
@@ -410,7 +383,7 @@ function StayManagement() {
         </div>
       </div>
 
-      {/* QR Code Modal */}
+      {/* Modal de codigo QR */}
       {qrModalOpen && currentQr && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-auto-secondary rounded-xl shadow-xl border border-auto max-w-md w-full p-6">

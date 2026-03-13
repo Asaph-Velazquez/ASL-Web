@@ -7,32 +7,32 @@ const router = express.Router();
 
 /**
  * POST /api/auth/validate
- * Validates JWT token against database
- * Checks: JWT validity, Stay.active === true, Stay.checkOut > now
+ * Valida el token JWT contra la base de datos
+ * Verifica: JWT valido, Stay.active === true, Stay.checkOut > now
  */
 router.post('/validate', verifyToken, async (req, res) => {
   try {
     const { stayId } = req.user;
 
-    // Find stay in database
+    // Buscar estancia en la base de datos
     const stay = await Stay.findOne({ stayId });
 
     if (!stay) {
       return res.status(401).json({ valid: false, reason: 'stay_not_found' });
     }
 
-    // Check if stay is active
+    // Verificar si la estancia esta activa
     if (!stay.active) {
       return res.status(401).json({ valid: false, reason: 'stay_ended' });
     }
 
-    // Check if checkout date has passed
+    // Verificar si la fecha de salida ya paso
     const now = new Date();
     if (stay.checkOut <= now) {
       return res.status(401).json({ valid: false, reason: 'stay_expired' });
     }
 
-    // Token is valid
+    // El token es valido
     return res.json({
       valid: true,
       roomNumber: stay.roomNumber,
@@ -47,21 +47,21 @@ router.post('/validate', verifyToken, async (req, res) => {
 
 /**
  * POST /api/auth/register
- * Receives JWT token + { guestName }
- * Updates Stay with guestName
- * Returns new JWT with guestName included
+ * Recibe token JWT + { guestName }
+ * Actualiza Stay con guestName
+ * Retorna un nuevo JWT con guestName incluido
  */
 router.post('/register', verifyToken, async (req, res) => {
   try {
     const { stayId } = req.user;
     const { guestName } = req.body;
 
-    // Validate input
+    // Validar entrada
     if (!guestName || typeof guestName !== 'string') {
       return res.status(400).json({ error: 'guestName is required and must be a string' });
     }
 
-    // Find and update stay
+    // Buscar y actualizar estancia
     const stay = await Stay.findOneAndUpdate(
       { stayId },
       { guestName },
@@ -72,7 +72,7 @@ router.post('/register', verifyToken, async (req, res) => {
       return res.status(404).json({ error: 'Stay not found' });
     }
 
-    // Generate new session token with guestName
+    // Generar nuevo token de sesion con guestName
     const sessionToken = jwt.sign(
       {
         stayId: stay.stayId,

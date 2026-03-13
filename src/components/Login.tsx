@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { BsBuildingsFill } from 'react-icons/bs';
 
 function Login() {
   const navigate = useNavigate();
@@ -34,7 +35,7 @@ function Login() {
       localStorage.setItem('staff_token', data.token);
       localStorage.setItem('staff_username', data.username || username);
       
-      // Navigate to dashboard
+      // Navegar al panel
       navigate('/');
     } catch (err) {
       setError('Login failed. Please check your connection.');
@@ -47,9 +48,9 @@ function Login() {
   return (
     <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: 'var(--bg-primary)' }}>
       <div className="w-full max-w-md">
-        {/* Card */}
+        {/* Tarjeta */}
         <div className="rounded-lg shadow-lg p-8" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)', borderWidth: 1 }}>
-          {/* Header */}
+          {/* Encabezado */}
           <div className="text-center mb-8">
             <div
               className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md"
@@ -57,30 +58,22 @@ function Login() {
                 background: 'linear-gradient(135deg, var(--hotel-primary), var(--hotel-secondary))',
               }}
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="white"
-                className="w-8 h-8"
-                viewBox="0 0 16 16"
-              >
-                <path d="M14.763.075A.5.5 0 0 1 15 .5v15a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5V14h-1v1.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5V10a.5.5 0 0 1 .342-.474L6 7.64V4.5a.5.5 0 0 1 .276-.447l8-4a.5.5 0 0 1 .487.022M6 8.694 1 10.36V15h5zM7 15h2v-1.5a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 .5.5V15h2V1.309l-7 3.5z" />
-                <path d="M2 11h1v1H2zm2 0h1v1H4zm-2 2h1v1H2zm2 0h1v1H4zm4-4h1v1H8zm2 0h1v1h-1zm-2 2h1v1H8zm2 0h1v1h-1zm2-2h1v1h-1zm0 2h1v1h-1zM8 7h1v1H8zm2 0h1v1h-1zm2 0h1v1h-1zM8 5h1v1H8zm2 0h1v1h-1zm2 0h1v1h-1zm0-2h1v1h-1z" />
-              </svg>
+              <BsBuildingsFill className="w-8 h-8 text-white" />
             </div>
             <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>ASL Hotel Panel</h1>
             <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>Staff Login</p>
           </div>
 
-          {/* Error Message */}
+          {/* Mensaje de error */}
           {error && (
             <div className="mb-6 p-4 rounded-lg" style={{ backgroundColor: 'rgba(220, 38, 38, 0.1)', borderColor: 'var(--problem)', borderWidth: 1 }}>
               <p className="text-sm font-medium" style={{ color: 'var(--problem)' }}>{error}</p>
             </div>
           )}
 
-          {/* Form */}
+          {/* Formulario */}
           <form onSubmit={handleLogin} className="space-y-4">
-            {/* Username Input */}
+            {/* Campo de usuario */}
             <div>
               <label htmlFor="username" className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
                 Username
@@ -101,7 +94,7 @@ function Login() {
               />
             </div>
 
-            {/* Password Input */}
+            {/* Campo de contrasena */}
             <div>
               <label htmlFor="password" className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
                 Password
@@ -122,7 +115,7 @@ function Login() {
               />
             </div>
 
-            {/* Submit Button */}
+            {/* Boton de envio */}
             <button
               type="submit"
               disabled={loading || !username || !password}
@@ -135,9 +128,19 @@ function Login() {
             </button>
           </form>
 
-          {/* Footer */}
+          {/* Pie */}
           <p className="text-xs text-center mt-6" style={{ color: 'var(--text-tertiary)' }}>
             Default credentials: admin / hotel2026
+          </p>
+          <p className="text-xs text-center mt-2" style={{ color: 'var(--text-tertiary)' }}>
+            ¿Necesitas una cuenta?{' '}
+            <button
+              onClick={() => navigate('/register')}
+              className="font-semibold hover:underline"
+              style={{ color: 'var(--hotel-primary)' }}
+            >
+              Regístrate aquí
+            </button>
           </p>
         </div>
       </div>

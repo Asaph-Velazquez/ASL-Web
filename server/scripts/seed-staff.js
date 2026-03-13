@@ -8,35 +8,47 @@ const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/asl-ho
 
 async function seedStaffUsers() {
   try {
-    // Connect to MongoDB
+    // Conectar a MongoDB
     await mongoose.connect(MONGODB_URI);
-    console.log('✅ MongoDB connected');
+    console.log('✅ MongoDB conectado');
 
-    // Check if admin user already exists
+    // Verificar si el usuario admin ya existe
     const existingAdmin = await StaffUser.findOne({ username: 'admin' });
     if (existingAdmin) {
-      console.log('✅ Admin user already exists');
+      console.log('✅ El usuario admin ya existe');
+      console.log(`   Rol: ${existingAdmin.role}`);
+      
+      // Actualizar rol a admin si no esta asignado
+      if (existingAdmin.role !== 'admin') {
+        existingAdmin.role = 'admin';
+        await existingAdmin.save();
+        console.log('✅ Rol admin actualizado');
+      }
+      
       await mongoose.connection.close();
       return;
     }
 
-    // Create default admin user
+    // Crear usuario admin por defecto
     const adminUser = new StaffUser({
       username: 'admin',
-      password: 'hotel2026'
+      password: 'hotel2026',
+      fullName: 'Administrator',
+      role: 'admin'
     });
 
     await adminUser.save();
-    console.log('✅ Default admin user created successfully');
-    console.log('   Username: admin');
-    console.log('   Password: hotel2026');
+    console.log('✅ Usuario admin por defecto creado correctamente');
+    console.log('   Usuario: admin');
+    console.log('   Contrasena: hotel2026');
+    console.log('   Rol: admin');
 
   } catch (error) {
-    console.error('❌ Error seeding staff users:', error);
+    console.error('❌ Error al sembrar usuarios de staff:', error);
     process.exit(1);
   } finally {
     await mongoose.connection.close();
-    console.log('✅ MongoDB connection closed');
+    console.log('✅ Conexion de MongoDB cerrada');
   }
 }
 

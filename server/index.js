@@ -10,7 +10,7 @@ import staysRoutes from './routes/stays.js';
 import staffRoutes from './routes/staff.js';
 
 import { Stay } from './models/index.js';
-// Load environment variables
+// Cargar variables de entorno
 config();
 
 const app = express();
@@ -20,30 +20,30 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-// MongoDB Connection
+// Conexion a MongoDB
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/asl-hotel';
 mongoose.connect(MONGODB_URI)
   .then(() => console.log('✅ MongoDB conectado correctamente'))
   .catch(err => console.error('❌ Error al conectar MongoDB:', err));
 
-// Health check endpoint
+// Endpoint de salud
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-// API Routes
+// Rutas de API
 app.use('/api/auth', authRoutes);
 app.use('/api/stays', staysRoutes);
 app.use('/api/staff', staffRoutes);
 
-// Create HTTP server
+// Crear servidor HTTP
 const server = createServer(app);
 
-// WebSocket Server
+// Servidor WebSocket
 const wss = new WebSocketServer({ noServer: true });
 
 // Estado del servidor WebSocket
-// Socket metadata: maps WebSocket -> { roomNumber, guestName, stayId, isStaff }
+// Metadatos del socket: WebSocket -> { roomNumber, guestName, stayId, isStaff }
 const socketMeta = new WeakMap();
 const clientes = new Set();
 let configuracionApp = {
@@ -65,9 +65,9 @@ function difundir(mensaje) {
 wss.on('connection', (ws) => {
   const meta = socketMeta.get(ws);
   if (meta?.roomNumber) {
-    console.log(`🔒 Verified guest connected: ${meta.guestName} (Room ${meta.roomNumber})`);
+    console.log(`🔒 Huesped verificado conectado: ${meta.guestName} (Habitacion ${meta.roomNumber})`);
   } else if (meta?.isStaff) {
-    console.log('👥 Staff member connected (web dashboard)');
+    console.log('👥 Personal conectado (panel web)');
   } else {
     console.log('✅ Nuevo cliente conectado');
   }
@@ -97,7 +97,7 @@ wss.on('connection', (ws) => {
 
         case 'NEW_REQUEST':
           console.log('📥 Nueva petición recibida:', mensaje.payload);
-          // Inject server-verified roomNumber and guestName
+          // Inyectar roomNumber y guestName verificados por el servidor
           const meta = socketMeta.get(ws);
           const verifiedPayload = {
             ...mensaje.payload,
@@ -109,12 +109,43 @@ wss.on('connection', (ws) => {
             type: 'NEW_REQUEST',
             payload: verifiedPayload
           });
+          break;
 
         case 'UPDATE_REQUEST':
           console.log('🔄 Petición actualizada:', mensaje.payload);
           difundir({
             type: 'UPDATE_REQUEST',
             payload: mensaje.payload
+          });
+          break;
+
+        case 'CANCEL_REQUEST':
+          console.log('🚫 Petición cancelada:', mensaje.payload);
+          const metaCancel = socketMeta.get(ws);
+          const cancelPayload = {
+            ...mensaje.payload,
+            cancelledBy: metaCancel?.isStaff ? 'staff' : 'guest',
+            cancelledByName: metaCancel?.isStaff ? 'Personal del Hotel' : metaCancel?.guestName || 'Huésped',
+            cancelledAt: new Date().toISOString(),
+            status: 'cancelled'
+          };
+          
+          difundir({
+            type: 'CANCEL_REQUEST',
+            payload: cancelPayload
+          });
+          break;
+
+        case 'RATE_REQUEST':
+          console.log('⭐ Petición calificada:', mensaje.payload);
+          const ratePayload = {
+            ...mensaje.payload,
+            ratedAt: mensaje.payload.ratedAt || new Date().toISOString()
+          };
+          
+          difundir({
+            type: 'RATE_REQUEST',
+            payload: ratePayload
           });
           break;
 
@@ -136,85 +167,71 @@ wss.on('connection', (ws) => {
   });
 });
 
-// Handle WebSocket upgrade on the same HTTP server
-// Handle WebSocket upgrade with JWT validation
+// Manejar el upgrade a WebSocket en el mismo servidor HTTP
+// Manejar upgrade WebSocket con validacion JWT
 server.on('upgrade', async (request, socket, head) => {
   try {
     const url = new URL(request.url, `http://${request.headers.host}`);
     const token = url.searchParams.get('token');
 
-    // If no token provided, check if this is a web dashboard or mobile connection
+    // Si no hay token, detectar si es panel web o app movil
     if (!token) {
       const userAgent = request.headers['user-agent'] || '';
       const isMobileApp = userAgent.includes('okhttp') || userAgent.includes('Expo') || userAgent.includes('ReactNative');
       
       if (isMobileApp) {
-        // Allow mobile apps to connect without token initially (will be authenticated per-message)
+        // Permitir conexion inicial de app movil sin token (se autentica por mensaje)
         wss.handleUpgrade(request, socket, head, (ws) => {
           socketMeta.set(ws, { isStaff: false, isMobile: true });
           wss.emit('connection', ws, request);
         });
         return;
       }
-      
-      // Web dashboard must have token or is staff
-      const isDashboard = true;
-      if (isDashboard) {
-        // Allow web dashboard (staff) to connect without guest token
-        wss.handleUpgrade(request, socket, head, (ws) => {
-          socketMeta.set(ws, { isStaff: true });
-          wss.emit('connection', ws, request);
-        });
-        return;
-      }
-    }
-    if (!token) {
-      const userAgent = request.headers['user-agent'] || '';
+
       const isDashboard = !userAgent.includes('okhttp') && !userAgent.includes('Expo');
-      
       if (isDashboard) {
-        // Allow web dashboard (staff) to connect without guest token
+        // Permitir panel web (staff) sin token de huesped
         wss.handleUpgrade(request, socket, head, (ws) => {
           socketMeta.set(ws, { isStaff: true });
           wss.emit('connection', ws, request);
         });
         return;
       } else {
-        // Mobile app must provide token
+        // La app movil debe enviar token
         socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
         socket.destroy();
-        console.log('❌ WebSocket connection rejected: no token provided');
+        console.log('❌ Conexion WebSocket rechazada: no se proporciono token');
         return;
       }
     }
 
-    // Validate JWT token
+    // Validar token JWT
     let decoded;
     try {
       decoded = jwt.verify(token, process.env.JWT_SECRET);
     } catch (err) {
       socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
       socket.destroy();
-      console.log('❌ WebSocket connection rejected: invalid token');
+      console.log('❌ Conexion WebSocket rechazada: token invalido');
       return;
     }
 
     const { stayId, roomNumber, guestName } = decoded;
 
-    // Validate stay in database
+    // Validar estancia en base de datos
     const stay = await Stay.findOne({ stayId });
     
     if (!stay) {
       socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
       socket.destroy();
-      console.log('❌ WebSocket connection rejected: stay not found');
+      console.log('❌ Conexion WebSocket rechazada: estancia no encontrada');
       return;
     }
 
     if (!stay.active) {
       socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
       socket.destroy();
-      console.log('❌ WebSocket connection rejected: stay inactive');
+      console.log('❌ Conexion WebSocket rechazada: estancia inactiva');
       return;
     }
 
@@ -222,11 +239,11 @@ server.on('upgrade', async (request, socket, head) => {
     if (stay.checkOut <= now) {
       socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
       socket.destroy();
-      console.log('❌ WebSocket connection rejected: stay expired');
+      console.log('❌ Conexion WebSocket rechazada: estancia vencida');
       return;
     }
 
-    // Token valid, accept connection and store metadata
+    // Token valido: aceptar conexion y guardar metadatos
     wss.handleUpgrade(request, socket, head, (ws) => {
       socketMeta.set(ws, {
         roomNumber: stay.roomNumber,
@@ -243,7 +260,7 @@ server.on('upgrade', async (request, socket, head) => {
   }
 });
 
-// Start server with error handling for EADDRINUSE
+// Iniciar servidor con manejo de error EADDRINUSE
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
     console.error(`❌ Port ${PORT} is already in use. Trying an alternate port...`);
@@ -254,7 +271,7 @@ server.on('error', (err) => {
       console.log(`   - WebSocket: ws://localhost:${altPort}`);
     });
   } else {
-    console.error('❌ Server error:', err);
+    console.error('❌ Error de servidor:', err);
     process.exit(1);
   }
 });

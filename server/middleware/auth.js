@@ -1,24 +1,24 @@
 import jwt from 'jsonwebtoken';
 
 /**
- * JWT verification middleware
- * Extracts token from Authorization header, verifies it, and attaches payload to req.user
+ * Middleware de verificacion JWT
+ * Extrae el token del encabezado Authorization, lo verifica y adjunta el payload en req.user
  */
 export function verifyToken(req, res, next) {
   try {
-    // Extract token from Authorization header
+    // Extraer token del encabezado Authorization
     const authHeader = req.headers.authorization;
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({ error: 'No token provided' });
     }
 
-    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+    const token = authHeader.substring(7); // Quitar prefijo 'Bearer '
 
-    // Verify token
+    // Verificar token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
-    // Attach decoded payload to request
+    // Adjuntar payload decodificado a la solicitud
     req.user = decoded;
     
     next();

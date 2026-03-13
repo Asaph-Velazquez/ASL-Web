@@ -11,13 +11,22 @@ const staffUserSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  fullName: {
+    type: String,
+    required: false
+  },
+  role: {
+    type: String,
+    enum: ['staff', 'admin'],
+    default: 'staff'
+  },
   createdAt: {
     type: Date,
     default: () => new Date()
   }
 });
 
-// Pre-save hook to hash password
+// Hook pre-save para hashear la contrasena
 staffUserSchema.pre('save', async function(next) {
   if (!this.isModified('password')) return next();
   this.password = await bcryptjs.hash(this.password, 10);
