@@ -26,6 +26,7 @@ import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded";
 import LocalTaxiRoundedIcon from "@mui/icons-material/LocalTaxiRounded";
 import ReportProblemRoundedIcon from "@mui/icons-material/ReportProblemRounded";
 import RestaurantRoundedIcon from "@mui/icons-material/RestaurantRounded";
+import ConfirmationModal from "./modals/ConfirmationModal";
 
 // Componentes de iconos Bootstrap
 const HotelIcon = () => <BsBuildingsFill className="w-10 h-10" />;
@@ -113,6 +114,10 @@ function Home() {
     busqueda: "",
   });
   const [userRole, setUserRole] = useState<string>("");
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [peticionIdToCancel, setPeticionIdToCancel] = useState<string | null>(
+    null,
+  );
 
   // Manejadores de filtros
   const toggleFiltroEstado = (estado: string) => {
@@ -233,16 +238,35 @@ function Home() {
 
   // Cancelar petición
   const manejarCancelarPeticion = (idPeticion: string) => {
-    if (confirm("¿Estás seguro de que deseas cancelar esta petición?")) {
-      enviarMensaje({
-        type: "CANCEL_REQUEST",
-        payload: {
-          id: idPeticion,
-        },
-      });
+    setPeticionIdToCancel(idPeticion);
+    setShowCancelModal(true);
+  };
 
-      console.log("🚫 Petición cancelada:", idPeticion);
+  const confirmarCancelacion = () => {
+    if (!peticionIdToCancel) {
+      setShowCancelModal(false);
+      return;
     }
+
+    enviarMensaje({
+      type: "CANCEL_REQUEST",
+      payload: {
+        id: peticionIdToCancel,
+      },
+    });
+
+    console.log("🚫 Petición cancelada:", peticionIdToCancel);
+    setShowCancelModal(false);
+    setPeticionIdToCancel(null);
+  };
+
+  const peticionSeleccionadaParaCancelar = peticiones.find(
+    (p) => p.id === peticionIdToCancel,
+  );
+
+  const cerrarModalCancelacion = () => {
+    setShowCancelModal(false);
+    setPeticionIdToCancel(null);
   };
 
   // Escuchar mensajes de WebSocket
@@ -777,6 +801,21 @@ function Home() {
           </div>
         </div>
       </div>
+
+      <ConfirmationModal
+        open={showCancelModal}
+        title="Cancelar petición"
+        message={
+          peticionSeleccionadaParaCancelar
+            ? `¿Estás seguro de que deseas cancelar la petición de la habitación ${peticionSeleccionadaParaCancelar.numeroHabitacion}?`
+            : "¿Estás seguro de que deseas cancelar esta petición?"
+        }
+        confirmLabel="Sí, cancelar"
+        cancelLabel="No, volver"
+        variant="danger"
+        onConfirm={confirmarCancelacion}
+        onCancel={cerrarModalCancelacion}
+      />
     </div>
   );
 }
