@@ -24,6 +24,18 @@ interface RegisterForm {
   role: 'staff' | 'admin';
 }
 
+interface EditForm {
+  username: string;
+  fullName: string;
+  role: 'staff' | 'admin';
+}
+
+interface NotificationState {
+  open: boolean;
+  message: string;
+  type: 'success' | 'error' | 'warning';
+}
+
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 const INITIAL_REGISTER_FORM: RegisterForm = {
   username: '',
@@ -38,14 +50,46 @@ const ROLE_META: Record<StaffUser['role'], { label: string; badgeClass: string }
   staff: { label: 'Staff', badgeClass: 'bg-green-500' },
 };
 
+const getApiErrorMessage = async (response: Response, fallback: string) => {
+  const contentType = response.headers.get('content-type') || '';
+
+  if (contentType.includes('application/json')) {
+    try {
+      const data = await response.json();
+      return data?.error || fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  const text = await response.text();
+  if (text?.trim().startsWith('<!DOCTYPE') || text?.trim().startsWith('<html')) {
+    return `${fallback} (respuesta HTML del servidor, status ${response.status})`;
+  }
+
+  return text || fallback;
+};
+
 function StaffManagement() {
   const [staffList, setStaffList] = useState<StaffUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [editingUser, setEditingUser] = useState<string | null>(null);
-  const [selectedRole, setSelectedRole] = useState<'staff' | 'admin'>('staff');
+  const [editForm, setEditForm] = useState<EditForm>({ username: '', fullName: '', role: 'staff' });
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [registerForm, setRegisterForm] = useState<RegisterForm>(INITIAL_REGISTER_FORM);
+  const [notification, setNotification] = useState<NotificationState>({
+    open: false,
+    message: '',
+    type: 'success',
+  });
+
+  const showNotification = (message: string, type: NotificationState['type']) => {
+    setNotification({ open: true, message, type });
+    setTimeout(() => {
+      setNotification((prev) => ({ ...prev, open: false }));
+    }, 3200);
+  };
 
   const getAuthHeaders = (withJson = false) => {
     const token = localStorage.getItem('staff_token');
@@ -90,28 +134,55 @@ function StaffManagement() {
     }
   };
 
-  const handleUpdateRole = async (userId: string, newRole: 'staff' | 'admin') => {
+  const startEditingUser = (user: StaffUser) => {
+    setEditingUser(user._id);
+    setEditForm({
+      username: user.username,
+      fullName: user.fullName || '',
+      role: user.role,
+    });
+  };
+
+  const cancelEditingUser = () => {
+    setEditingUser(null);
+    setEditForm({ username: '', fullName: '', role: 'staff' });
+  };
+
+  const handleUpdateUser = async (userId: string) => {
+    if (!editForm.username.trim() || !editForm.fullName.trim()) {
+      showNotification('Usuario y nombre completo son obligatorios', 'warning');
+      return;
+    }
+
     try {
-      const response = await fetch(`${API_BASE}/api/staff/update-role`, {
+      const response = await fetch(`${API_BASE}/api/staff/update/${userId}`, {
         method: 'PUT',
         headers: getAuthHeaders(true),
-        body: JSON.stringify({ userId, role: newRole }),
+        body: JSON.stringify({
+          username: editForm.username.trim(),
+          fullName: editForm.fullName.trim(),
+          role: editForm.role,
+        }),
       });
 
       if (!response.ok) {
-        throw new Error('No se pudo actualizar el rol');
+        const message = await getApiErrorMessage(response, 'No se pudo actualizar el usuario');
+        throw new Error(message);
       }
+
+      const data = await response.json();
+      const updated = data.user as StaffUser;
 
       // Actualizar la lista localmente
       setStaffList(prev =>
         prev.map(user =>
-          user._id === userId ? { ...user, role: newRole } : user
+          user._id === userId ? { ...user, ...updated } : user
         )
       );
-      setEditingUser(null);
-      alert('✅ Rol actualizado exitosamente');
-    } catch (err) {
-      alert('❌ Error al actualizar el rol');
+      cancelEditingUser();
+      showNotification('Usuario actualizado exitosamente', 'success');
+    } catch (err: any) {
+      showNotification(err.message || 'Error al actualizar el usuario', 'error');
       console.error(err);
     }
   };
@@ -133,9 +204,9 @@ function StaffManagement() {
 
       // Actualizar la lista localmente
       setStaffList(prev => prev.filter(user => user._id !== userId));
-      alert('✅ Usuario eliminado exitosamente');
+      showNotification('Usuario eliminado exitosamente', 'success');
     } catch (err) {
-      alert('❌ Error al eliminar el usuario');
+      showNotification('Error al eliminar el usuario', 'error');
       console.error(err);
     }
   };
@@ -145,17 +216,17 @@ function StaffManagement() {
 
     // Validaciones
     if (!registerForm.username || !registerForm.password) {
-      alert('⚠️ Usuario y contraseña son obligatorios');
+      showNotification('Usuario y contraseña son obligatorios', 'warning');
       return;
     }
 
     if (registerForm.password !== registerForm.confirmPassword) {
-      alert('⚠️ Las contraseñas no coinciden');
+      showNotification('Las contraseñas no coinciden', 'warning');
       return;
     }
 
     if (registerForm.password.length < 6) {
-      alert('⚠️ La contraseña debe tener al menos 6 caracteres');
+      showNotification('La contraseña debe tener al menos 6 caracteres', 'warning');
       return;
     }
 
@@ -172,17 +243,17 @@ function StaffManagement() {
       });
 
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Error al registrar usuario');
+        const message = await getApiErrorMessage(response, 'Error al registrar usuario');
+        throw new Error(message);
       }
 
-      alert('✅ Usuario registrado exitosamente');
+      showNotification('Usuario registrado exitosamente', 'success');
       closeRegisterModal();
       
       // Recargar la lista
       fetchStaffList();
     } catch (err: any) {
-      alert(`❌ ${err.message}`);
+      showNotification(err.message || 'Error al registrar usuario', 'error');
       console.error(err);
     }
   };
@@ -197,6 +268,31 @@ function StaffManagement() {
 
   return (
     <div className="min-h-screen bg-auto-primary">
+      {notification.open && (
+        <div className="fixed top-4 right-4 z-[60] max-w-sm w-[calc(100%-2rem)] sm:w-auto">
+          <div
+            className={`px-4 py-3 rounded-xl shadow-lg border backdrop-blur-sm animate-[fadeIn_0.2s_ease-out] ${
+              notification.type === 'success'
+                ? 'bg-emerald-50/95 border-emerald-200 text-emerald-800'
+                : notification.type === 'error'
+                  ? 'bg-red-50/95 border-red-200 text-red-800'
+                  : 'bg-amber-50/95 border-amber-200 text-amber-800'
+            }`}
+          >
+            <div className="flex items-start gap-3">
+              <span className="text-sm leading-5 font-medium">{notification.message}</span>
+              <button
+                onClick={() => setNotification((prev) => ({ ...prev, open: false }))}
+                className="ml-auto text-current/70 hover:text-current transition-colors"
+                title="Cerrar notificación"
+              >
+                <XIcon className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Encabezado */}
       <header className="sticky top-0 z-50 backdrop-blur-xl bg-auto-secondary/90 border-b border-auto shadow-sm">
         <div className="max-w-7xl mx-auto px-6 py-4">
@@ -261,16 +357,40 @@ function StaffManagement() {
                 {staffList.map((user) => (
                   <tr key={user._id} className="border-b border-auto hover:bg-auto-tertiary/30 transition-colors">
                     <td className="py-3 px-4 text-sm text-auto-primary font-medium">
-                      {user.username}
+                      {editingUser === user._id ? (
+                        <input
+                          type="text"
+                          value={editForm.username}
+                          onChange={(e) => setEditForm((prev) => ({ ...prev, username: e.target.value }))}
+                          className="w-full min-w-[140px] px-3 py-1 rounded-lg border border-auto bg-auto-tertiary text-xs font-medium text-auto-primary focus:outline-none focus:ring-2"
+                          style={{
+                            "--tw-ring-color": "var(--hotel-primary)",
+                          } as React.CSSProperties}
+                        />
+                      ) : (
+                        user.username
+                      )}
                     </td>
                     <td className="py-3 px-4 text-sm text-auto-secondary">
-                      {user.fullName || '-'}
+                      {editingUser === user._id ? (
+                        <input
+                          type="text"
+                          value={editForm.fullName}
+                          onChange={(e) => setEditForm((prev) => ({ ...prev, fullName: e.target.value }))}
+                          className="w-full min-w-[180px] px-3 py-1 rounded-lg border border-auto bg-auto-tertiary text-xs text-auto-primary focus:outline-none focus:ring-2"
+                          style={{
+                            "--tw-ring-color": "var(--hotel-primary)",
+                          } as React.CSSProperties}
+                        />
+                      ) : (
+                        user.fullName || '-'
+                      )}
                     </td>
                     <td className="py-3 px-4">
                       {editingUser === user._id ? (
                         <select
-                          value={selectedRole}
-                          onChange={(e) => setSelectedRole(e.target.value as 'staff' | 'admin')}
+                          value={editForm.role}
+                          onChange={(e) => setEditForm((prev) => ({ ...prev, role: e.target.value as 'staff' | 'admin' }))}
                           className="px-3 py-1 rounded-lg border border-auto bg-auto-tertiary text-xs font-medium text-auto-primary focus:outline-none focus:ring-2"
                           style={{
                             "--tw-ring-color": "var(--hotel-primary)",
@@ -299,14 +419,14 @@ function StaffManagement() {
                         {editingUser === user._id ? (
                           <>
                             <button
-                              onClick={() => handleUpdateRole(user._id, selectedRole)}
+                              onClick={() => handleUpdateUser(user._id)}
                               className="px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-all hover:scale-105"
                               style={{ backgroundColor: "var(--success)" }}
                             >
                               Guardar
                             </button>
                             <button
-                              onClick={() => setEditingUser(null)}
+                              onClick={cancelEditingUser}
                               className="px-3 py-1.5 rounded-lg text-xs font-medium border border-auto text-auto-secondary transition-all hover:bg-auto-tertiary"
                             >
                               Cancelar
@@ -315,13 +435,10 @@ function StaffManagement() {
                         ) : (
                           <>
                             <button
-                              onClick={() => {
-                                setEditingUser(user._id);
-                                setSelectedRole(user.role);
-                              }}
+                              onClick={() => startEditingUser(user)}
                               className="p-2 rounded-lg transition-all hover:bg-auto-tertiary"
                               style={{ color: "var(--hotel-primary)" }}
-                              title="Editar rol"
+                              title="Editar usuario"
                             >
                               <EditIcon />
                             </button>

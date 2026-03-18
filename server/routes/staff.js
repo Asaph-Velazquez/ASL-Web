@@ -191,6 +191,79 @@ router.put('/update-role', async (req, res) => {
 });
 
 /**
+ * PUT /api/staff/update/:id
+ * Actualiza usuario, nombre completo y rol de un usuario (solo admin)
+ */
+router.put('/update/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { username, fullName, role } = req.body;
+
+    // Validar entrada
+    if (!username || !fullName || !role) {
+      return res.status(400).json({ error: 'username, fullName and role are required' });
+    }
+
+    if (typeof username !== 'string' || typeof fullName !== 'string') {
+      return res.status(400).json({ error: 'username and fullName must be strings' });
+    }
+
+    const normalizedUsername = username.trim();
+    const normalizedFullName = fullName.trim();
+
+    if (!normalizedUsername || !normalizedFullName) {
+      return res.status(400).json({ error: 'username and fullName cannot be empty' });
+    }
+
+    if (!['staff', 'admin'].includes(role)) {
+      return res.status(400).json({ error: 'Invalid role' });
+    }
+
+    // Obtener token del encabezado
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'No token provided' });
+    }
+
+    const token = authHeader.substring(7);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // Verificar si el usuario es admin
+    if (decoded.role !== 'admin') {
+      return res.status(403).json({ error: 'Access denied. Admin only.' });
+    }
+
+    // Verificar duplicidad de username
+    const existingUsername = await StaffUser.findOne({ username: normalizedUsername, _id: { $ne: id } });
+    if (existingUsername) {
+      return res.status(409).json({ error: 'Username already exists' });
+    }
+
+    const updatedUser = await StaffUser.findByIdAndUpdate(
+      id,
+      {
+        username: normalizedUsername,
+        fullName: normalizedFullName,
+        role,
+      },
+      { new: true }
+    ).select('-password');
+
+    if (!updatedUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    return res.json({
+      message: 'User updated successfully',
+      user: updatedUser,
+    });
+  } catch (error) {
+    console.error('Error updating user:', error);
+    return res.status(500).json({ error: 'Failed to update user' });
+  }
+});
+
+/**
  * DELETE /api/staff/delete/:id
  * Elimina un usuario de staff (solo admin)
  */

@@ -19,7 +19,6 @@ import {
   BsSearch,
   BsStar,
   BsStarFill,
-  BsStars,
   BsXLg,
   BsXCircle,
 } from "react-icons/bs";
@@ -60,7 +59,7 @@ interface Peticion {
   mensaje: string;
   fecha: Date;
   estado: "pending" | "in-progress" | "completed" | "cancelled";
-  prioridad: "low" | "medium" | "high" | "urgent";
+  prioridad: "medium" | "high" | "urgent";
   cancelledBy?: "staff" | "guest";
   cancelledByName?: string;
   cancelledAt?: string;
@@ -769,19 +768,6 @@ function Home() {
                           peticiones.filter((p) => p.prioridad === "medium")
                             .length
                         }
-                      </span>
-                    </button>
-                    <button
-                      onClick={() => toggleFiltroPrioridad("low")}
-                      className={`w-full px-3 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-between ${
-                        filtros.prioridad.includes("low")
-                          ? "bg-blue-500 text-white shadow-sm"
-                          : "bg-auto-tertiary/50 text-auto-secondary hover:bg-auto-tertiary border border-auto"
-                      }`}
-                    >
-                      <span>Baja</span>
-                      <span className="font-bold">
-                        {peticiones.filter((p) => p.prioridad === "low").length}
                       </span>
                     </button>
                   </div>

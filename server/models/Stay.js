@@ -32,6 +32,11 @@ const staySchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  status: {
+    type: String,
+    enum: ['scheduled', 'active', 'ended', 'cancelled'],
+    default: 'active'
+  },
   createdAt: {
     type: Date,
     default: () => new Date()

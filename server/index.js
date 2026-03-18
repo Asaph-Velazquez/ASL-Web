@@ -10,6 +10,7 @@ import staysRoutes from './routes/stays.js';
 import staffRoutes from './routes/staff.js';
 
 import { Stay } from './models/index.js';
+import { processStayTransitions } from './services/stayLifecycle.js';
 // Cargar variables de entorno
 config();
 
@@ -25,6 +26,18 @@ const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/asl-ho
 mongoose.connect(MONGODB_URI)
   .then(() => console.log('✅ MongoDB conectado correctamente'))
   .catch(err => console.error('❌ Error al conectar MongoDB:', err));
+
+setInterval(() => {
+  processStayTransitions()
+    .then((result) => {
+      if (result.ended > 0 || result.activated > 0) {
+        console.log(`🔁 Rotacion de estancias: ${result.ended} finalizadas, ${result.activated} activadas`);
+      }
+    })
+    .catch((error) => {
+      console.error('❌ Error procesando rotacion de estancias:', error);
+    });
+}, 60 * 1000);
 
 // Endpoint de salud
 app.get('/api/health', (req, res) => {
@@ -171,6 +184,7 @@ wss.on('connection', (ws) => {
 // Manejar upgrade WebSocket con validacion JWT
 server.on('upgrade', async (request, socket, head) => {
   try {
+    await processStayTransitions();
     const url = new URL(request.url, `http://${request.headers.host}`);
     const token = url.searchParams.get('token');
 

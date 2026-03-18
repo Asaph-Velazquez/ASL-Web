@@ -2,6 +2,7 @@ import express from 'express';
 import jwt from 'jsonwebtoken';
 import { Stay } from '../models/index.js';
 import { verifyToken } from '../middleware/auth.js';
+import { processStayTransitions } from '../services/stayLifecycle.js';
 
 const router = express.Router();
 
@@ -12,6 +13,7 @@ const router = express.Router();
  */
 router.post('/validate', verifyToken, async (req, res) => {
   try {
+    await processStayTransitions();
     const { stayId } = req.user;
 
     // Buscar estancia en la base de datos
@@ -53,6 +55,7 @@ router.post('/validate', verifyToken, async (req, res) => {
  */
 router.post('/register', verifyToken, async (req, res) => {
   try {
+    await processStayTransitions();
     const { stayId } = req.user;
     const { guestName } = req.body;
 
