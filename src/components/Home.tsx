@@ -252,6 +252,7 @@ function Home() {
       type: "CANCEL_REQUEST",
       payload: {
         id: peticionIdToCancel,
+        requestedBy: "staff",
       },
     });
 

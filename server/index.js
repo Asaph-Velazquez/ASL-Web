@@ -135,10 +135,16 @@ wss.on('connection', (ws) => {
         case 'CANCEL_REQUEST':
           console.log('🚫 Petición cancelada:', mensaje.payload);
           const metaCancel = socketMeta.get(ws);
+          const requestedBy = mensaje.payload?.requestedBy;
+          const cancelledBy = (requestedBy === 'staff' || requestedBy === 'guest')
+            ? requestedBy
+            : (metaCancel?.isStaff ? 'staff' : 'guest');
           const cancelPayload = {
             ...mensaje.payload,
-            cancelledBy: metaCancel?.isStaff ? 'staff' : 'guest',
-            cancelledByName: metaCancel?.isStaff ? 'Personal del Hotel' : metaCancel?.guestName || 'Huésped',
+            cancelledBy,
+            cancelledByName: cancelledBy === 'staff'
+              ? (mensaje.payload?.cancelledByName || 'Personal del Hotel')
+              : (metaCancel?.guestName || mensaje.payload?.guestName || 'Huésped'),
             cancelledAt: new Date().toISOString(),
             status: 'cancelled'
           };

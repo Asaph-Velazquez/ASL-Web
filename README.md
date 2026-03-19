@@ -31,12 +31,53 @@ npm install
 cd ..
 ```
 
+### Configurar Variables de Entorno
+
+#### Para el Servidor WebSocket
+
+1. Dirígete a la carpeta del servidor:
+```bash
+cd server
+```
+
+2. Crea un archivo `.env` basado en `.env.example`:
+```bash
+cp .env.example .env
+```
+
+3. Edita el archivo `.env` con tus valores:
+```env
+PORT=3001
+MONGODB_URI=mongodb://localhost:27017/asl-hotel
+JWT_SECRET=tu-clave-secreta-segura
+```
+
+**Variables disponibles:**
+- `PORT`: Puerto donde se ejecutará el servidor (default: 3001)
+- `MONGODB_URI`: Conexión a MongoDB (local o Atlas)
+- `JWT_SECRET`: Clave para firmar tokens JWT (⚠️ cambiar en producción)
+
+Para generar una `JWT_SECRET` segura:
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
 ### Ejecutar el proyecto
+
+Asegúrate de que MongoDB esté ejecutándose antes de iniciar el servidor.
 
 **Terminal 1 - Servidor WebSocket:**
 ```bash
 cd server
 npm start
+```
+
+Deberías ver:
+```
+✅ MongoDB conectado correctamente
+🚀 Servidor HTTP + WebSocket iniciado en:
+   - HTTP: http://localhost:3001
+   - WebSocket: ws://localhost:3001
 ```
 
 **Terminal 2 - Panel Web:**
@@ -45,7 +86,6 @@ npm run dev
 ```
 
 El panel web se ejecutará en `http://localhost:5173`
-El servidor WebSocket en `ws://localhost:8080`
 
 ### Compilar para producción
 
@@ -71,7 +111,8 @@ npm run preview
 ```
 src/
 ├── components/      # Componentes reutilizables
-│   └── Home.tsx
+│   ├── Home.tsx
+│   └── modals/      # Componentes de modales
 ├── hooks/           # Custom hooks
 │   └── useWebSocket.ts
 ├── assets/          # Recursos estáticos
@@ -79,8 +120,14 @@ src/
 ├── main.tsx         # Punto de entrada
 └── index.css        # Estilos globales
 
-server/              # Servidor WebSocket
-├── websocket-server.js
+server/              # Servidor WebSocket + API
+├── index.js         # Servidor principal
+├── models/          # Esquemas de base de datos
+├── routes/          # Rutas API
+├── services/        # Lógica de negocio
+├── middleware/      # Middleware Express
+├── .env.example     # Variables de entorno (ejemplo)
+├── .env             # Variables de entorno (local - no commitear)
 ├── package.json
 └── README.md
 
@@ -122,11 +169,52 @@ Este panel web se comunica con:
 ```
 
 
+## ⚙️ Configuración Importante
+
+### Variables de Entorno
+
+**El archivo `.env` contiene secretos y NO debe ser commiteado.**
+
+El repositorio incluye `.env.example` como referencia. Cada desarrollador debe:
+
+1. Copiar `.env.example` a `.env`
+2. Actualizar los valores según su entorno local
+3. El `.env` está en `.gitignore` para proteger secretos
+
+### MongoDB
+
+Para desarrollo local, asegúrate de tener MongoDB instalado y ejecutándose:
+
+```bash
+# macOS (con Homebrew)
+brew services start mongodb-community
+
+# Windows (si instalaste como servicio)
+net start MongoDB
+
+# O ejecutar MongoDB directamente
+mongod
+```
+
+### JWT_SECRET en Producción
+
+⚠️ **IMPORTANTE**: Nunca uses la clave de ejemplo en producción.
+
+Genera una clave segura:
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+Luego actualiza `JWT_SECRET` en tu `.env` de producción.
+
 ## 📝 Desarrollo
 
 El proyecto utiliza:
 - **Vite** para desarrollo rápido con HMR (Hot Module Replacement)
 - **TypeScript** para type safety
 - **React** para la interfaz de usuario
+- **Express + WebSocket** para el servidor backend
+- **MongoDB + Mongoose** para persistencia de datos
+- **JWT** para autenticación segura
 - **ESLint** para mantener calidad de código
 
