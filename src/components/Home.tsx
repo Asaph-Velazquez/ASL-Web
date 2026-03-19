@@ -171,7 +171,6 @@ function Home() {
         const payload = JSON.parse(atob(token.split(".")[1]));
         setUserRole(payload.role || "staff");
       } catch (error) {
-        console.error("Error al decodificar token:", error);
         setUserRole("staff");
       }
     }
@@ -233,7 +232,6 @@ function Home() {
       ),
     );
 
-    console.log("✅ Estado actualizado:", idPeticion, "→", nuevoEstado);
   };
 
   // Cancelar petición
@@ -256,7 +254,6 @@ function Home() {
       },
     });
 
-    console.log("🚫 Petición cancelada:", peticionIdToCancel);
     setShowCancelModal(false);
     setPeticionIdToCancel(null);
   };
@@ -288,7 +285,6 @@ function Home() {
               fecha: new Date(payload.timestamp),
             };
             setPeticiones((prev) => [nuevaPeticion, ...prev]);
-            console.log("✅ Nueva petición recibida:", nuevaPeticion);
             break;
           case "UPDATE_REQUEST":
             // Actualizar solo el estado de la petición
@@ -300,7 +296,6 @@ function Home() {
                   : r,
               ),
             );
-            console.log("🔄 Petición actualizada:", update);
             break;
           case "CANCEL_REQUEST":
             // Actualizar petición como cancelada
@@ -318,7 +313,6 @@ function Home() {
                   : r,
               ),
             );
-            console.log("🚫 Petición cancelada:", cancelData);
             break;
           case "RATE_REQUEST":
             // Actualizar petición con calificación
@@ -334,20 +328,13 @@ function Home() {
                   : r,
               ),
             );
-            console.log("⭐ Petición calificada:", rateData);
             break;
           case "CONFIG_UPDATED":
-            console.log("⚙️ Configuración actualizada en servidor");
             break;
           default:
-            console.log("⚠️ Mensaje no manejado:", ultimoMensaje);
         }
       } catch (error) {
-        console.error(
-          "❌ Error al procesar mensaje WebSocket:",
-          error,
-          ultimoMensaje,
-        );
+        
       }
     }
   }, [ultimoMensaje]);
@@ -919,7 +906,6 @@ function TarjetaPeticion({
       const horas = Math.floor(minutos / 60);
       return `Hace ${horas}h`;
     } catch (error) {
-      console.error("Error al formatear fecha:", error);
       return "Fecha inválida";
     }
   };

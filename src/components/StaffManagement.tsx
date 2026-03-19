@@ -130,7 +130,6 @@ function StaffManagement() {
     } catch (err) {
       setError('Error al cargar la lista de staff');
       setLoading(false);
-      console.error(err);
     }
   };
 
@@ -183,7 +182,6 @@ function StaffManagement() {
       showNotification('Usuario actualizado exitosamente', 'success');
     } catch (err: any) {
       showNotification(err.message || 'Error al actualizar el usuario', 'error');
-      console.error(err);
     }
   };
 
@@ -207,7 +205,6 @@ function StaffManagement() {
       showNotification('Usuario eliminado exitosamente', 'success');
     } catch (err) {
       showNotification('Error al eliminar el usuario', 'error');
-      console.error(err);
     }
   };
 
@@ -254,7 +251,6 @@ function StaffManagement() {
       fetchStaffList();
     } catch (err: any) {
       showNotification(err.message || 'Error al registrar usuario', 'error');
-      console.error(err);
     }
   };
 

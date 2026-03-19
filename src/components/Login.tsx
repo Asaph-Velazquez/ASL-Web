@@ -39,7 +39,6 @@ function Login() {
       navigate('/');
     } catch (err) {
       setError('Login failed. Please check your connection.');
-      console.error('Login error:', err);
     } finally {
       setLoading(false);
     }

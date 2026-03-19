@@ -63,7 +63,6 @@ function Register() {
       navigate('/login');
     } catch (err) {
       setError('Error al conectar con el servidor. Verifica tu conexión.');
-      console.error('Registration error:', err);
     } finally {
       setLoading(false);
     }
