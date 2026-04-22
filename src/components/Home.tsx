@@ -104,7 +104,8 @@ const normalizarTipoPeticion = (
 function Home() {
   const navigate = useNavigate();
   const URL_WS = import.meta.env.VITE_WS_URL || "ws://localhost:3001";
-  const { estaConectado, enviarMensaje, ultimoMensaje } = useWebSocket(URL_WS);
+  const staffToken = localStorage.getItem("staff_token");
+  const { estaConectado, enviarMensaje, ultimoMensaje } = useWebSocket(URL_WS, staffToken);
 
   const [peticiones, setPeticiones] = useState<Peticion[]>([]);
   const [filtros, setFiltros] = useState<Filtros>({

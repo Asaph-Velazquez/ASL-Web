@@ -1,7 +1,8 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
-import bcryptjs from 'bcryptjs';
 import { StaffUser } from '../models/index.js';
+import { loginLimiter, validateBody, schemas } from '../middleware/security.js';
+import { verifyStaffToken, requireAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -11,6 +12,20 @@ const router = express.Router();
  */
 router.post('/register', async (req, res) => {
   try {
+    const totalUsers = await StaffUser.countDocuments();
+    if (totalUsers > 0) {
+      const authHeader = req.headers.authorization;
+      if (!authHeader?.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Admin token required' });
+      }
+
+      const token = authHeader.substring(7);
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      if (decoded.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied. Admin only.' });
+      }
+    }
+
     const { username, password, fullName, role } = req.body;
 
     // Validar entrada
@@ -60,28 +75,21 @@ router.post('/register', async (req, res) => {
 
 /**
  * POST /api/staff/login
- * Valida usuario/contrasena contra el modelo StaffUser
- * Retorna token JWT de staff
- */
-router.post('/login', async (req, res) => {
+ * Valida usuario/contraseña contra el modelo StaffUser
+**/
+router.post('/login', loginLimiter, validateBody(schemas.staffLogin), async (req, res) => {
   try {
     const { username, password } = req.body;
 
-    // Validar entrada
-    if (!username || !password) {
-      return res.status(400).json({ 
-        error: 'username and password are required' 
-      });
-    }
+    const normalizedUsername = username.trim();
 
     // Buscar usuario de staff
-    const staffUser = await StaffUser.findOne({ username });
+    const staffUser = await StaffUser.findOne({ username: normalizedUsername });
     if (!staffUser) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Comparar contrasena con bcryptjs
-    const isPasswordValid = await bcryptjs.compare(password, staffUser.password);
+    const isPasswordValid = await staffUser.comparePassword(password);
     if (!isPasswordValid) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
@@ -108,26 +116,15 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// Todas las rutas de administracion de staff requieren admin autenticado
+router.use(verifyStaffToken, requireAdmin);
+
 /**
  * GET /api/staff/list
  * Retorna lista de todos los usuarios staff (solo admin)
  */
 router.get('/list', async (req, res) => {
   try {
-    // Obtener token del encabezado
-    const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'No token provided' });
-    }
-
-    const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    // Verificar si el usuario es admin
-    if (decoded.role !== 'admin') {
-      return res.status(403).json({ error: 'Access denied. Admin only.' });
-    }
-
     // Obtener todos los usuarios de staff (sin contrasena)
     const users = await StaffUser.find({}, '-password').sort({ createdAt: -1 });
 
@@ -153,20 +150,6 @@ router.put('/update-role', async (req, res) => {
 
     if (!['staff', 'admin'].includes(role)) {
       return res.status(400).json({ error: 'Invalid role' });
-    }
-
-    // Obtener token del encabezado
-    const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'No token provided' });
-    }
-
-    const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    // Verificar si el usuario es admin
-    if (decoded.role !== 'admin') {
-      return res.status(403).json({ error: 'Access denied. Admin only.' });
     }
 
     // Actualizar rol de usuario
@@ -219,20 +202,6 @@ router.put('/update/:id', async (req, res) => {
       return res.status(400).json({ error: 'Invalid role' });
     }
 
-    // Obtener token del encabezado
-    const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'No token provided' });
-    }
-
-    const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    // Verificar si el usuario es admin
-    if (decoded.role !== 'admin') {
-      return res.status(403).json({ error: 'Access denied. Admin only.' });
-    }
-
     // Verificar duplicidad de username
     const existingUsername = await StaffUser.findOne({ username: normalizedUsername, _id: { $ne: id } });
     if (existingUsername) {
@@ -271,22 +240,8 @@ router.delete('/delete/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Obtener token del encabezado
-    const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'No token provided' });
-    }
-
-    const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    // Verificar si el usuario es admin
-    if (decoded.role !== 'admin') {
-      return res.status(403).json({ error: 'Access denied. Admin only.' });
-    }
-
     // Evitar autoeliminacion
-    if (decoded.userId === id) {
+    if (String(req.user.userId) === id) {
       return res.status(400).json({ error: 'Cannot delete your own account' });
     }
 

@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import bcryptjs from 'bcryptjs';
+import argon2 from 'argon2';
 
 const staffUserSchema = new mongoose.Schema({
   username: {
@@ -26,12 +26,24 @@ const staffUserSchema = new mongoose.Schema({
   }
 });
 
-// Hook pre-save para hashear la contrasena
 staffUserSchema.pre('save', async function(next) {
   if (!this.isModified('password')) return next();
-  this.password = await bcryptjs.hash(this.password, 10);
+  this.password = await argon2.hash(this.password, {
+    type: argon2.argon2id,
+    memoryCost: 65536,
+    timeCost: 3,
+    parallelism: 4
+  });
   next();
 });
+
+staffUserSchema.methods.comparePassword = async function(password) {
+  try {
+    return await argon2.verify(this.password, password);
+  } catch (_error) {
+    return false;
+  }
+};
 
 const StaffUser = mongoose.model('StaffUser', staffUserSchema);
 

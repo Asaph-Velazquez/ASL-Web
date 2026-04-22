@@ -54,6 +54,14 @@ interface ConfirmationState {
 const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'http://localhost:3001/api';
 const WEEK_DAYS = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'];
 
+function getAuthHeaders(extra: Record<string, string> = {}) {
+  const token = localStorage.getItem('staff_token');
+  return {
+    ...extra,
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
 function toLocalDateTimeInput(date = new Date()) {
   const tzOffset = date.getTimezoneOffset() * 60000;
   return new Date(date.getTime() - tzOffset).toISOString().slice(0, 16);
@@ -217,7 +225,9 @@ function StayManagement() {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch(`${API_BASE}/stays`);
+      const response = await fetch(`${API_BASE}/stays`, {
+        headers: getAuthHeaders(),
+      });
       if (!response.ok) {
         throw new Error('No se pudieron cargar las reservaciones');
       }
@@ -363,7 +373,7 @@ function StayManagement() {
       setLoading(true);
       const response = await fetch(`${API_BASE}/stays`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           roomNumber: roomNumber.trim(),
           guestName: guestName.trim() || null,
@@ -381,7 +391,9 @@ function StayManagement() {
       const status = getStatus(newStay);
 
       if (status === 'active') {
-        const qrResponse = await fetch(`${API_BASE}/stays/${newStay.stayId}/qr`);
+        const qrResponse = await fetch(`${API_BASE}/stays/${newStay.stayId}/qr`, {
+          headers: getAuthHeaders(),
+        });
         if (!qrResponse.ok) {
           throw new Error('Reservacion creada, pero no se pudo generar el QR');
         }
@@ -413,6 +425,7 @@ function StayManagement() {
     try {
       const response = await fetch(`${API_BASE}/stays/process-transitions`, {
         method: 'POST',
+        headers: getAuthHeaders(),
       });
 
       if (!response.ok) {
@@ -435,6 +448,7 @@ function StayManagement() {
       setLoading(true);
       const response = await fetch(`${API_BASE}/stays/${stayId}/end`, {
         method: 'PATCH',
+        headers: getAuthHeaders(),
       });
 
       if (!response.ok) {
@@ -455,6 +469,7 @@ function StayManagement() {
       setLoading(true);
       const response = await fetch(`${API_BASE}/stays/${stayId}`, {
         method: 'DELETE',
+        headers: getAuthHeaders(),
       });
 
       if (!response.ok) {
@@ -475,6 +490,7 @@ function StayManagement() {
       setLoading(true);
       const response = await fetch(`${API_BASE}/stays/${stayId}/cancel`, {
         method: 'PATCH',
+        headers: getAuthHeaders(),
       });
 
       if (!response.ok) {
@@ -516,7 +532,7 @@ function StayManagement() {
     try {
       const response = await fetch(`${API_BASE}/stays/${extendModal.stay.stayId}/extend`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ newCheckOut: extendModal.newCheckOut }),
       });
 
@@ -535,7 +551,9 @@ function StayManagement() {
 
   const openQrModal = async (stayId: string) => {
     try {
-      const response = await fetch(`${API_BASE}/stays/${stayId}/qr`);
+      const response = await fetch(`${API_BASE}/stays/${stayId}/qr`, {
+        headers: getAuthHeaders(),
+      });
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
         throw new Error(payload?.error || 'No se pudo generar el QR');

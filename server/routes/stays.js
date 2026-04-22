@@ -2,8 +2,11 @@ import express from 'express';
 import { Stay } from '../models/index.js';
 import { generateQRDataURL } from '../utils/qr.js';
 import { buildStayToken, hasRoomConflict, processStayTransitions } from '../services/stayLifecycle.js';
+import { verifyStaffToken } from '../middleware/auth.js';
+import { validateBody, schemas } from '../middleware/security.js';
 
 const router = express.Router();
+router.use(verifyStaffToken);
 
 function toDate(value) {
   const parsed = new Date(value);
@@ -15,7 +18,7 @@ function toDate(value) {
  * Crea un nuevo documento Stay
  * Genera token JWT con datos de la estancia y lo guarda en Stay.qrToken
  */
-router.post('/', async (req, res) => {
+router.post('/', validateBody(schemas.createStay), async (req, res) => {
   try {
     const { roomNumber, checkIn, checkOut, guestName } = req.body;
 
@@ -178,7 +181,7 @@ router.patch('/:stayId/end', async (req, res) => {
  * PATCH /api/stays/:stayId/extend
  * Extiende una reservacion si no existe conflicto con otras reservaciones
  */
-router.patch('/:stayId/extend', async (req, res) => {
+router.patch('/:stayId/extend', validateBody(schemas.extendStay), async (req, res) => {
   try {
     const { stayId } = req.params;
     const { newCheckOut } = req.body;

@@ -1,5 +1,7 @@
 import express from 'express';
 import { createServer } from 'http';
+import { createServer as createHTTPServer } from 'https';
+import { readFileSync, existsSync } from 'fs';
 import { WebSocketServer } from 'ws';
 import mongoose from 'mongoose';
 import cors from 'cors';
@@ -8,18 +10,44 @@ import jwt from 'jsonwebtoken';
 import authRoutes from './routes/auth.js';
 import staysRoutes from './routes/stays.js';
 import staffRoutes from './routes/staff.js';
-
 import { Stay } from './models/index.js';
 import { processStayTransitions } from './services/stayLifecycle.js';
-// Cargar variables de entorno
+import {
+  helmetMiddleware,
+  generalLimiter,
+  loginLimiter,
+  registerLimiter,
+  corsOptions,
+  sanitizeInput,
+  auditLogger,
+  logSecurityEvent,
+  sanitizeWSMessage,
+  WS_INACTIVITY_TIMEOUT
+} from './middleware/security.js';
+
 config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const HTTPS_PORT = process.env.HTTPS_PORT || 3002;
+const USE_HTTPS = process.env.USE_HTTPS === 'true';
+const NODE_ENV = process.env.NODE_ENV || 'development';
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+app.use(helmetMiddleware);
+app.use(sanitizeInput);
+
+app.use((req, res, next) => {
+  cors(corsOptions)(req, res, (err) => {
+    if (err) {
+      logSecurityEvent('CORS_BLOCKED', { origin: req.headers.origin, path: req.path });
+      return res.status(403).json({ error: 'Origen no permitido' });
+    }
+    next();
+  });
+});
+
+app.use(express.json({ limit: '10kb' }));
+app.use('/api', generalLimiter);
 
 // Conexion a MongoDB
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/asl-hotel';
@@ -44,7 +72,6 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-// Rutas de API
 app.use('/api/auth', authRoutes);
 app.use('/api/stays', staysRoutes);
 app.use('/api/staff', staffRoutes);
@@ -74,7 +101,6 @@ function difundir(mensaje) {
   });
 }
 
-// Manejador de conexiones WebSocket
 wss.on('connection', (ws) => {
   const meta = socketMeta.get(ws);
   if (meta?.roomNumber) {
@@ -91,49 +117,62 @@ wss.on('connection', (ws) => {
     payload: configuracionApp
   }));
 
-  // Escuchar mensajes
+  const inactivityTimeout = setTimeout(() => {
+    ws.close(1008, 'Inactividad prolongada');
+  }, WS_INACTIVITY_TIMEOUT);
+
+  ws.on('pong', () => {
+    clearTimeout(inactivityTimeout);
+    inactivityTimeout.refresh();
+  });
+
   ws.on('message', (datos) => {
+    clearTimeout(inactivityTimeout);
+    inactivityTimeout.refresh();
+
     try {
-      const mensaje = JSON.parse(datos.toString());
-      console.log('📨 Mensaje recibido:', mensaje);
+      const rawData = datos.toString();
+      if (rawData.length > 10000) {
+        ws.send(JSON.stringify({ error: 'Mensaje demasiado grande' }));
+        return;
+      }
+
+      const mensaje = sanitizeWSMessage(JSON.parse(rawData));
+      console.log('📨 Mensaje recibido:', mensaje.type);
 
       switch (mensaje.type) {
         case 'UPDATE_CONFIG':
+          if (!socketMeta.get(ws)?.isStaff) {
+            ws.send(JSON.stringify({ error: 'Unauthorized action' }));
+            break;
+          }
           configuracionApp = mensaje.payload;
           console.log('⚙️ Configuración actualizada');
-          
-          difundir({
-            type: 'CONFIG_UPDATED',
-            payload: configuracionApp
-          });
+          difundir({ type: 'CONFIG_UPDATED', payload: configuracionApp });
           break;
 
         case 'NEW_REQUEST':
-          console.log('📥 Nueva petición recibida:', mensaje.payload);
-          // Inyectar roomNumber y guestName verificados por el servidor
+          console.log('📥 Nueva petición recibida:', mensaje.payload?.type);
           const meta = socketMeta.get(ws);
           const verifiedPayload = {
             ...mensaje.payload,
             roomNumber: meta?.roomNumber || mensaje.payload.roomNumber,
             guestName: meta?.guestName || mensaje.payload.guestName
           };
-          
-          difundir({
-            type: 'NEW_REQUEST',
-            payload: verifiedPayload
-          });
+          difundir({ type: 'NEW_REQUEST', payload: verifiedPayload });
           break;
 
         case 'UPDATE_REQUEST':
-          console.log('🔄 Petición actualizada:', mensaje.payload);
-          difundir({
-            type: 'UPDATE_REQUEST',
-            payload: mensaje.payload
-          });
+          if (!socketMeta.get(ws)?.isStaff) {
+            ws.send(JSON.stringify({ error: 'Unauthorized action' }));
+            break;
+          }
+          console.log('🔄 Petición actualizada:', mensaje.payload?.requestId);
+          difundir({ type: 'UPDATE_REQUEST', payload: mensaje.payload });
           break;
 
         case 'CANCEL_REQUEST':
-          console.log('🚫 Petición cancelada:', mensaje.payload);
+          console.log('🚫 Petición cancelada:', mensaje.payload?.requestId);
           const metaCancel = socketMeta.get(ws);
           const requestedBy = mensaje.payload?.requestedBy;
           const cancelledBy = (requestedBy === 'staff' || requestedBy === 'guest')
@@ -148,41 +187,36 @@ wss.on('connection', (ws) => {
             cancelledAt: new Date().toISOString(),
             status: 'cancelled'
           };
-          
-          difundir({
-            type: 'CANCEL_REQUEST',
-            payload: cancelPayload
-          });
+          difundir({ type: 'CANCEL_REQUEST', payload: cancelPayload });
           break;
 
         case 'RATE_REQUEST':
-          console.log('⭐ Petición calificada:', mensaje.payload);
+          console.log('⭐ Petición calificada:', mensaje.payload?.requestId);
           const ratePayload = {
             ...mensaje.payload,
             ratedAt: mensaje.payload.ratedAt || new Date().toISOString()
           };
-          
-          difundir({
-            type: 'RATE_REQUEST',
-            payload: ratePayload
-          });
+          difundir({ type: 'RATE_REQUEST', payload: ratePayload });
           break;
 
         default:
           console.log('⚠️ Tipo de mensaje no reconocido:', mensaje.type);
       }
     } catch (error) {
-      console.error('❌ Error al procesar mensaje:', error);
+      console.error('❌ Error al procesar mensaje:', error.message);
+      ws.send(JSON.stringify({ error: 'Formato de mensaje inválido' }));
     }
   });
 
   ws.on('close', () => {
+    clearTimeout(inactivityTimeout);
     console.log('🔌 Cliente desconectado');
     clientes.delete(ws);
   });
 
   ws.on('error', (error) => {
-    console.error('❌ Error en WebSocket:', error);
+    clearTimeout(inactivityTimeout);
+    console.error('❌ Error en WebSocket:', error.message);
   });
 });
 
@@ -194,35 +228,12 @@ server.on('upgrade', async (request, socket, head) => {
     const url = new URL(request.url, `http://${request.headers.host}`);
     const token = url.searchParams.get('token');
 
-    // Si no hay token, detectar si es panel web o app movil
+    // Todo cliente WebSocket debe autenticarse con JWT
     if (!token) {
-      const userAgent = request.headers['user-agent'] || '';
-      const isMobileApp = userAgent.includes('okhttp') || userAgent.includes('Expo') || userAgent.includes('ReactNative');
-      
-      if (isMobileApp) {
-        // Permitir conexion inicial de app movil sin token (se autentica por mensaje)
-        wss.handleUpgrade(request, socket, head, (ws) => {
-          socketMeta.set(ws, { isStaff: false, isMobile: true });
-          wss.emit('connection', ws, request);
-        });
-        return;
-      }
-
-      const isDashboard = !userAgent.includes('okhttp') && !userAgent.includes('Expo');
-      if (isDashboard) {
-        // Permitir panel web (staff) sin token de huesped
-        wss.handleUpgrade(request, socket, head, (ws) => {
-          socketMeta.set(ws, { isStaff: true });
-          wss.emit('connection', ws, request);
-        });
-        return;
-      } else {
-        // La app movil debe enviar token
-        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-        socket.destroy();
-        console.log('❌ Conexion WebSocket rechazada: no se proporciono token');
-        return;
-      }
+      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      socket.destroy();
+      console.log('❌ Conexion WebSocket rechazada: no se proporciono token');
+      return;
     }
 
     // Validar token JWT
@@ -236,7 +247,21 @@ server.on('upgrade', async (request, socket, head) => {
       return;
     }
 
-    const { stayId, roomNumber, guestName } = decoded;
+    const { stayId, roomNumber, guestName, userId, role, username } = decoded;
+
+    // Token de staff/admin
+    if (userId && ['staff', 'admin'].includes(role)) {
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        socketMeta.set(ws, {
+          isStaff: true,
+          userId,
+          username,
+          role
+        });
+        wss.emit('connection', ws, request);
+      });
+      return;
+    }
 
     // Validar estancia en base de datos
     const stay = await Stay.findOne({ stayId });
@@ -280,29 +305,49 @@ server.on('upgrade', async (request, socket, head) => {
   }
 });
 
-// Iniciar servidor con manejo de error EADDRINUSE
+const startServer = (srv, port, isHTTPS, wsUrl) => {
+  srv.listen(port, () => {
+    console.log(`🚀 Servidor ${isHTTPS ? 'HTTPS' : 'HTTP'} + WebSocket iniciado en:`);
+    console.log(`   - ${isHTTPS ? 'HTTPS' : 'HTTP'}: ${wsUrl}`);
+    if (isHTTPS) {
+      console.log(`   ⚠️  CERTIFICADO AUTOFIRMADO - Acepta la advertencia en el navegador`);
+    }
+  });
+};
+
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
     console.error(`❌ Port ${PORT} is already in use. Trying an alternate port...`);
     const altPort = parseInt(PORT, 10) === 3001 ? 3002 : parseInt(PORT, 10) + 1;
-    server.listen(altPort, () => {
-      console.log(`🚀 Servidor HTTP + WebSocket iniciado en:`);
-      console.log(`   - HTTP: http://localhost:${altPort}`);
-      console.log(`   - WebSocket: ws://localhost:${altPort}`);
-    });
+    startServer(server, altPort, false, `http://localhost:${altPort}`);
   } else {
     console.error('❌ Error de servidor:', err);
     process.exit(1);
   }
 });
 
-server.listen(PORT, () => {
-  console.log(`🚀 Servidor HTTP + WebSocket iniciado en:`);
-  console.log(`   - HTTP: http://localhost:${PORT}`);
-  console.log(`   - WebSocket: ws://localhost:${PORT}`);
-});
+if (USE_HTTPS && existsSync('cert.pem') && existsSync('key.pem')) {
+  const httpsOptions = {
+    key: readFileSync('key.pem'),
+    cert: readFileSync('cert.pem')
+  };
+  const httpsServer = createHTTPServer(httpsOptions, app);
+  const httpsWss = new WebSocketServer({ noServer: true });
 
-// Cierre del servidor
+  httpsServer.on('error', (err) => {
+    console.error('❌ Error en servidor HTTPS:', err);
+  });
+
+  httpsServer.on('upgrade', (request, socket, head) => {
+    wss.emit('upgrade', request, socket, head);
+  });
+
+  startServer(httpsServer, HTTPS_PORT, true, `https://localhost:${HTTPS_PORT}`);
+  console.log(`   - WebSocket Secure: wss://localhost:${HTTPS_PORT}`);
+}
+
+startServer(server, PORT, false, `http://localhost:${PORT}`);
+
 process.on('SIGINT', () => {
   console.log('\n🛑 Cerrando servidor...');
   wss.close(() => {

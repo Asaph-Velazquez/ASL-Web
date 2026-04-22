@@ -12,7 +12,7 @@ interface RetornoUseWebSocket {
   ultimoMensaje: MensajeWebSocket | null;
 }
 
-export function useWebSocket(url: string): RetornoUseWebSocket {
+export function useWebSocket(url: string, token?: string | null): RetornoUseWebSocket {
   const [estaConectado, setEstaConectado] = useState(false);
   const [ultimoMensaje, setUltimoMensaje] = useState<MensajeWebSocket | null>(null);
   const refWs = useRef<WebSocket | null>(null);
@@ -23,7 +23,10 @@ export function useWebSocket(url: string): RetornoUseWebSocket {
   // Conexión WebSocket
   const conectar = useCallback(() => {
     try {
-      const ws = new WebSocket(url);
+      const wsUrl = token
+        ? `${url}${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`
+        : url;
+      const ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
         setEstaConectado(true);
@@ -60,7 +63,7 @@ export function useWebSocket(url: string): RetornoUseWebSocket {
       refWs.current = ws;
     } catch (error) {
     }
-  }, [url]);
+  }, [url, token]);
 
   const enviarMensaje = useCallback((mensaje: MensajeWebSocket) => {
     if (refWs.current && refWs.current.readyState === WebSocket.OPEN) {

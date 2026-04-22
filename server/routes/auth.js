@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { Stay } from '../models/index.js';
 import { verifyToken } from '../middleware/auth.js';
 import { processStayTransitions } from '../services/stayLifecycle.js';
+import { registerLimiter, validateBody, schemas } from '../middleware/security.js';
 
 const router = express.Router();
 
@@ -53,7 +54,7 @@ router.post('/validate', verifyToken, async (req, res) => {
  * Actualiza Stay con guestName
  * Retorna un nuevo JWT con guestName incluido
  */
-router.post('/register', verifyToken, async (req, res) => {
+router.post('/register', registerLimiter, verifyToken, validateBody(schemas.guestRegister), async (req, res) => {
   try {
     await processStayTransitions();
     const { stayId } = req.user;
