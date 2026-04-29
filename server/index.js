@@ -87,7 +87,7 @@ const wss = new WebSocketServer({ noServer: true });
 const socketMeta = new WeakMap();
 const clientes = new Set();
 let configuracionApp = {
-  nombreHotel: 'Hotel ASL Grand',
+  nombreHotel: 'Canada Central Hotel',
   servicios: []
 };
 

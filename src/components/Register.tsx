@@ -84,7 +84,7 @@ function Register() {
               <BsPersonBadge className="w-8 h-8 text-white" />
             </div>
             <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Registro de Staff</h1>
-            <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>Hotel ASL Grand</p>
+            <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>Canada Central Hotel</p>
           </div>
 
           {/* Mensaje de error */}
