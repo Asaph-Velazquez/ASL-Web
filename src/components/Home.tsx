@@ -60,7 +60,7 @@ interface Peticion {
   mensaje: string;
   fecha: Date;
   estado: "pending" | "in-progress" | "completed" | "cancelled";
-  prioridad: "medium" | "high" | "urgent";
+  prioridad: "low" | "medium" | "high" | "urgent";
   cancelledBy?: "staff" | "guest";
   cancelledByName?: string;
   cancelledAt?: string;
@@ -73,6 +73,22 @@ interface Filtros {
   tipo: string[];
   prioridad: string[];
   busqueda: string;
+}
+
+interface PersistedRequest {
+  requestId: string;
+  type: string;
+  roomNumber: string;
+  guestName: string;
+  message: string;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  status: 'pending' | 'in-progress' | 'completed' | 'cancelled';
+  timestamp: string;
+  cancelledBy?: 'staff' | 'guest';
+  cancelledByName?: string;
+  cancelledAt?: string;
+  rating?: number;
+  ratedAt?: string;
 }
 
 const normalizarTipoPeticion = (
@@ -273,6 +289,28 @@ function Home() {
     if (ultimoMensaje) {
       try {
         switch (ultimoMensaje.type) {
+          case "INIT_REQUESTS":
+            const persistedRequests = Array.isArray(ultimoMensaje.payload?.requests)
+              ? (ultimoMensaje.payload.requests as PersistedRequest[])
+              : [];
+            setPeticiones(
+              persistedRequests.map((request) => ({
+                id: request.requestId,
+                tipo: normalizarTipoPeticion(request.type, request.message),
+                numeroHabitacion: request.roomNumber,
+                nombreHuesped: request.guestName,
+                mensaje: request.message,
+                prioridad: request.priority,
+                estado: request.status,
+                fecha: new Date(request.timestamp),
+                cancelledBy: request.cancelledBy,
+                cancelledByName: request.cancelledByName,
+                cancelledAt: request.cancelledAt,
+                rating: request.rating,
+                ratedAt: request.ratedAt,
+              })),
+            );
+            break;
           case "NEW_REQUEST":
             const payload = ultimoMensaje.payload;
             const nuevaPeticion: Peticion = {

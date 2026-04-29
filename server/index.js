@@ -13,6 +13,13 @@ import staffRoutes from './routes/staff.js';
 import { Stay } from './models/index.js';
 import { processStayTransitions } from './services/stayLifecycle.js';
 import {
+  listRequestsForSocket,
+  persistNewRequest,
+  persistRequestCancellation,
+  persistRequestRating,
+  persistRequestUpdate,
+} from './services/requestPersistence.js';
+import {
   helmetMiddleware,
   generalLimiter,
   loginLimiter,
@@ -101,7 +108,7 @@ function difundir(mensaje) {
   });
 }
 
-wss.on('connection', (ws) => {
+wss.on('connection', async (ws) => {
   const meta = socketMeta.get(ws);
   if (meta?.roomNumber) {
     console.log(`🔒 Huesped verificado conectado: ${meta.guestName} (Habitacion ${meta.roomNumber})`);
@@ -117,6 +124,16 @@ wss.on('connection', (ws) => {
     payload: configuracionApp
   }));
 
+  try {
+    const requests = await listRequestsForSocket(meta);
+    ws.send(JSON.stringify({
+      type: 'INIT_REQUESTS',
+      payload: { requests },
+    }));
+  } catch (error) {
+    console.error('❌ Error cargando historial de solicitudes:', error.message);
+  }
+
   const inactivityTimeout = setTimeout(() => {
     ws.close(1008, 'Inactividad prolongada');
   }, WS_INACTIVITY_TIMEOUT);
@@ -126,7 +143,7 @@ wss.on('connection', (ws) => {
     inactivityTimeout.refresh();
   });
 
-  ws.on('message', (datos) => {
+  ws.on('message', async (datos) => {
     clearTimeout(inactivityTimeout);
     inactivityTimeout.refresh();
 
@@ -153,12 +170,16 @@ wss.on('connection', (ws) => {
 
         case 'NEW_REQUEST':
           console.log('📥 Nueva petición recibida:', mensaje.payload?.type);
-          const meta = socketMeta.get(ws);
+          const socketDetails = socketMeta.get(ws);
           const verifiedPayload = {
             ...mensaje.payload,
-            roomNumber: meta?.roomNumber || mensaje.payload.roomNumber,
-            guestName: meta?.guestName || mensaje.payload.guestName
+            roomNumber: socketDetails?.roomNumber || mensaje.payload.roomNumber,
+            guestName: socketDetails?.guestName || mensaje.payload.guestName,
+            stayId: socketDetails?.stayId || mensaje.payload.stayId || null,
+            status: mensaje.payload?.status || 'pending',
+            timestamp: mensaje.payload?.timestamp || new Date().toISOString(),
           };
+          await persistNewRequest(verifiedPayload, socketDetails);
           difundir({ type: 'NEW_REQUEST', payload: verifiedPayload });
           break;
 
@@ -168,6 +189,7 @@ wss.on('connection', (ws) => {
             break;
           }
           console.log('🔄 Petición actualizada:', mensaje.payload?.requestId);
+          await persistRequestUpdate(mensaje.payload, socketMeta.get(ws));
           difundir({ type: 'UPDATE_REQUEST', payload: mensaje.payload });
           break;
 
@@ -187,6 +209,7 @@ wss.on('connection', (ws) => {
             cancelledAt: new Date().toISOString(),
             status: 'cancelled'
           };
+          await persistRequestCancellation(cancelPayload, metaCancel);
           difundir({ type: 'CANCEL_REQUEST', payload: cancelPayload });
           break;
 
@@ -196,6 +219,7 @@ wss.on('connection', (ws) => {
             ...mensaje.payload,
             ratedAt: mensaje.payload.ratedAt || new Date().toISOString()
           };
+          await persistRequestRating(ratePayload, socketMeta.get(ws));
           difundir({ type: 'RATE_REQUEST', payload: ratePayload });
           break;
 
