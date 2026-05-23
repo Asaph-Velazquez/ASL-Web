@@ -26,7 +26,8 @@ const staySchema = new mongoose.Schema({
   },
   qrToken: {
     type: String,
-    unique: true
+    unique: true,
+    sparse: true
   },
   active: {
     type: Boolean,

@@ -191,8 +191,8 @@ router.patch('/:stayId/extend', validateBody(schemas.extendStay), async (req, re
       return res.status(404).json({ error: 'Stay not found' });
     }
 
-    if (stay.status === 'ended') {
-      return res.status(400).json({ error: 'No se puede extender una estancia finalizada' });
+    if (stay.status === 'ended' || stay.status === 'cancelled') {
+      return res.status(400).json({ error: 'No se puede extender una estancia finalizada o cancelada' });
     }
 
     const newCheckOutDate = toDate(newCheckOut);

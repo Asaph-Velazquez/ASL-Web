@@ -135,6 +135,11 @@ function statusLabel(status: 'scheduled' | 'active' | 'ended' | 'cancelled') {
   return 'Finalizada';
 }
 
+function blocksRoomSchedule(stay: Stay) {
+  const status = getStatus(stay);
+  return status === 'scheduled' || status === 'active';
+}
+
 function StayManagement() {
   const [stays, setStays] = useState<Stay[]>([]);
   const [loading, setLoading] = useState(false);
@@ -321,8 +326,13 @@ function StayManagement() {
         const leftPct = (startOffset / monthDuration) * 100;
         const widthPct = Math.max((duration / monthDuration) * 100, 1.8);
 
-        const hasConflict = roomStays.some((otherStay) => {
+        const status = getStatus(stay);
+        const hasConflict = blocksRoomSchedule(stay) && roomStays.some((otherStay) => {
           if (otherStay.stayId === stay.stayId) {
+            return false;
+          }
+
+          if (!blocksRoomSchedule(otherStay)) {
             return false;
           }
 
@@ -339,13 +349,38 @@ function StayManagement() {
           leftPct,
           widthPct,
           hasConflict,
-          status: getStatus(stay),
+          status,
+        };
+      });
+
+      // Calcular tracks (filas) para evitar traslapos visuales
+      const trackMap = new Map<string, number>();
+      const barsWithTracks = bars.map((bar, index) => {
+        let track = 0;
+        for (let i = 0; i < index; i++) {
+          const otherBar = bars[i];
+          const stayStart = new Date(bar.stay.checkIn);
+          const stayEnd = new Date(bar.stay.checkOut);
+          const otherStart = new Date(otherBar.stay.checkIn);
+          const otherEnd = new Date(otherBar.stay.checkOut);
+
+          if (overlapsRange(stayStart, stayEnd, otherStart, otherEnd)) {
+            const otherTrack = trackMap.get(otherBar.stay.stayId) ?? 0;
+            if (otherTrack === track) {
+              track += 1;
+            }
+          }
+        }
+        trackMap.set(bar.stay.stayId, track);
+        return {
+          ...bar,
+          track,
         };
       });
 
       return {
         room,
-        bars,
+        bars: barsWithTracks,
       };
     });
 
@@ -834,39 +869,57 @@ function StayManagement() {
                   </div>
                 </div>
 
-                {timelineData.rows.map((row) => (
-                  <div key={`timeline-${row.room}`} className="grid grid-cols-[120px_1fr] gap-3 items-center">
-                    <div className="text-sm font-semibold text-auto-primary">Hab {row.room}</div>
+                {timelineData.rows.map((row) => {
+                  const maxTrack = Math.max(...row.bars.map((b) => b.track), 0);
+                  const containerHeight = (maxTrack + 1) * 36;
 
-                    <div className="relative h-12 rounded-lg border border-auto bg-auto-tertiary/25 overflow-hidden">
-                      <div className="absolute inset-y-0 left-1/2 w-px bg-auto-tertiary" />
-                      {row.bars.map(({ stay, leftPct, widthPct, hasConflict, status }) => (
-                        <button
-                          key={`bar-${stay.stayId}`}
-                          onClick={() => openExtendModal(stay)}
-                          className="absolute top-1/2 -translate-y-1/2 h-8 rounded-md px-2 text-[11px] font-semibold text-white truncate"
-                          style={{
-                            left: `${leftPct}%`,
-                            width: `${widthPct}%`,
-                            backgroundColor: hasConflict
-                              ? '#ef4444'
-                              : status === 'active'
-                                ? '#059669'
-                                : status === 'scheduled'
-                                  ? '#2563eb'
-                                  : '#6b7280',
-                            opacity: status === 'ended' ? 0.65 : 1,
-                          }}
-                          title={`${stay.guestName || 'Sin huesped'} | ${formatDateTime(stay.checkIn)} - ${formatDateTime(stay.checkOut)}${
-                            hasConflict ? ' | Conflicto detectado' : ''
-                          }`}
-                        >
-                          {stay.guestName || stay.stayId.slice(0, 6)}
-                        </button>
-                      ))}
+                  return (
+                    <div key={`timeline-${row.room}`} className="grid grid-cols-[120px_1fr] gap-3 items-start">
+                      <div className="text-sm font-semibold text-auto-primary">Hab {row.room}</div>
+
+                      <div className="relative rounded-lg border border-auto bg-auto-tertiary/25 overflow-hidden" style={{ height: `${containerHeight}px` }}>
+                        <div className="absolute inset-y-0 left-1/2 w-px bg-auto-tertiary" />
+                        {row.bars.map(({ stay, leftPct, widthPct, hasConflict, status, track }) => {
+                          const canExtendFromTimeline = status === 'active' || status === 'scheduled';
+                          const topOffset = track * 36 + 4;
+
+                          return (
+                            <button
+                              key={`bar-${stay.stayId}`}
+                              onClick={() => {
+                                if (canExtendFromTimeline) {
+                                  openExtendModal(stay);
+                                }
+                              }}
+                              disabled={!canExtendFromTimeline}
+                              className="absolute h-8 rounded-md px-2 text-[11px] font-semibold text-white truncate disabled:cursor-default"
+                              style={{
+                                top: `${topOffset}px`,
+                                left: `${leftPct}%`,
+                                width: `${widthPct}%`,
+                                backgroundColor: hasConflict
+                                  ? '#ef4444'
+                                  : status === 'active'
+                                    ? '#059669'
+                                    : status === 'scheduled'
+                                      ? '#2563eb'
+                                      : status === 'cancelled'
+                                        ? '#f97316'
+                                        : '#6b7280',
+                                opacity: status === 'ended' || status === 'cancelled' ? 0.65 : 1,
+                              }}
+                              title={`${stay.guestName || 'Sin huesped'} | ${statusLabel(status)} | ${formatDateTime(stay.checkIn)} - ${formatDateTime(stay.checkOut)}${
+                                hasConflict ? ' | Conflicto detectado' : ''
+                              }`}
+                            >
+                              {stay.guestName || stay.stayId.slice(0, 6)}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
 
                 {timelineData.rows.length === 0 && (
                   <p className="text-sm text-auto-tertiary py-4">No hay habitaciones para mostrar en el timeline.</p>
@@ -883,6 +936,9 @@ function StayManagement() {
               </span>
               <span className="inline-flex items-center gap-1 text-auto-secondary">
                 <span className="w-2.5 h-2.5 rounded-sm bg-[#6b7280]" /> Finalizada
+              </span>
+              <span className="inline-flex items-center gap-1 text-auto-secondary">
+                <span className="w-2.5 h-2.5 rounded-sm bg-[#f97316] opacity-65" /> Cancelada
               </span>
               <span className="inline-flex items-center gap-1 text-auto-secondary">
                 <span className="w-2.5 h-2.5 rounded-sm bg-[#ef4444]" /> Conflicto

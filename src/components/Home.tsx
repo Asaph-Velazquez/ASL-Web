@@ -71,7 +71,6 @@ interface Peticion {
 interface Filtros {
   estado: string[];
   tipo: string[];
-  prioridad: string[];
   busqueda: string;
 }
 
@@ -127,7 +126,6 @@ function Home() {
   const [filtros, setFiltros] = useState<Filtros>({
     estado: [],
     tipo: [],
-    prioridad: [],
     busqueda: "",
   });
   const [userRole, setUserRole] = useState<string>("");
@@ -155,20 +153,10 @@ function Home() {
     }));
   };
 
-  const toggleFiltroPrioridad = (prioridad: string) => {
-    setFiltros((prev) => ({
-      ...prev,
-      prioridad: prev.prioridad.includes(prioridad)
-        ? prev.prioridad.filter((p) => p !== prioridad)
-        : [...prev.prioridad, prioridad],
-    }));
-  };
-
   const limpiarFiltros = () => {
     setFiltros({
       estado: [],
       tipo: [],
-      prioridad: [],
       busqueda: "",
     });
   };
@@ -205,14 +193,6 @@ function Home() {
 
     // Filtrar por tipo
     if (filtros.tipo.length > 0 && !filtros.tipo.includes(peticion.tipo)) {
-      return false;
-    }
-
-    // Filtrar por prioridad
-    if (
-      filtros.prioridad.length > 0 &&
-      !filtros.prioridad.includes(peticion.prioridad)
-    ) {
       return false;
     }
 
@@ -395,7 +375,6 @@ function Home() {
   const filtrosActivos =
     filtros.estado.length +
     filtros.tipo.length +
-    filtros.prioridad.length +
     (filtros.busqueda ? 1 : 0);
 
   return (
@@ -763,66 +742,6 @@ function Home() {
                     </button>
                   </div>
                 </div>
-
-                {/* Filtro por Prioridad */}
-                <div>
-                  <h3 className="text-xs font-semibold text-auto-secondary mb-2">
-                    Prioridad
-                  </h3>
-                  <div className="space-y-1.5">
-                    <button
-                      onClick={() => toggleFiltroPrioridad("urgent")}
-                      className={`w-full px-3 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-between ${
-                        filtros.prioridad.includes("urgent")
-                          ? "bg-red-500 text-white shadow-sm"
-                          : "bg-auto-tertiary/50 text-auto-secondary hover:bg-auto-tertiary border border-auto"
-                      }`}
-                    >
-                      <span className="flex items-center gap-1.5">
-                        <ExclamationTriangleIcon className="w-3.5 h-3.5" />
-                        Urgente
-                      </span>
-                      <span className="font-bold">
-                        {
-                          peticiones.filter((p) => p.prioridad === "urgent")
-                            .length
-                        }
-                      </span>
-                    </button>
-                    <button
-                      onClick={() => toggleFiltroPrioridad("high")}
-                      className={`w-full px-3 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-between ${
-                        filtros.prioridad.includes("high")
-                          ? "bg-orange-500 text-white shadow-sm"
-                          : "bg-auto-tertiary/50 text-auto-secondary hover:bg-auto-tertiary border border-auto"
-                      }`}
-                    >
-                      <span>Alta</span>
-                      <span className="font-bold">
-                        {
-                          peticiones.filter((p) => p.prioridad === "high")
-                            .length
-                        }
-                      </span>
-                    </button>
-                    <button
-                      onClick={() => toggleFiltroPrioridad("medium")}
-                      className={`w-full px-3 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-between ${
-                        filtros.prioridad.includes("medium")
-                          ? "bg-yellow-500 text-white shadow-sm"
-                          : "bg-auto-tertiary/50 text-auto-secondary hover:bg-auto-tertiary border border-auto"
-                      }`}
-                    >
-                      <span>Media</span>
-                      <span className="font-bold">
-                        {
-                          peticiones.filter((p) => p.prioridad === "medium")
-                            .length
-                        }
-                      </span>
-                    </button>
-                  </div>
-                </div>
               </div>
             </div>
           </div>
@@ -981,12 +900,6 @@ function TarjetaPeticion({
           >
             {config.etiqueta}
           </span>
-          {peticion.prioridad === "urgent" && (
-            <span className="px-2 py-0.5 rounded-md text-xs font-bold bg-red-500 text-white animate-pulse flex items-center gap-1">
-              <ExclamationTriangleIcon className="w-3 h-3" />
-              URGENTE
-            </span>
-          )}
         </div>
       </div>
 

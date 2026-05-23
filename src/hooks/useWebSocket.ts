@@ -37,11 +37,11 @@ export function useWebSocket(url: string, token?: string | null): RetornoUseWebS
         try {
           const mensaje = JSON.parse(evento.data);
           setUltimoMensaje(mensaje);
-        } catch (error) {
+        } catch {
         }
       };
 
-      ws.onerror = (error) => {
+      ws.onerror = () => {
       };
 
       ws.onclose = () => {
@@ -61,7 +61,7 @@ export function useWebSocket(url: string, token?: string | null): RetornoUseWebS
       };
 
       refWs.current = ws;
-    } catch (error) {
+    } catch {
     }
   }, [url, token]);
 
