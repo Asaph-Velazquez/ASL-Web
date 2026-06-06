@@ -24,8 +24,8 @@ function ConfirmationModal({
   open,
   title,
   message,
-  confirmLabel = 'Confirmar',
-  cancelLabel = 'Cancelar',
+  confirmLabel = 'Confirm',
+  cancelLabel = 'Cancel',
   variant = 'primary',
   loading = false,
   onConfirm,
@@ -42,7 +42,7 @@ function ConfirmationModal({
             onClick={onCancel}
             disabled={loading}
             className="p-1 rounded-lg text-auto-secondary hover:text-auto-primary hover:bg-auto-tertiary disabled:opacity-40"
-            aria-label="Cerrar modal de confirmacion"
+            aria-label="Close confirmation modal"
           >
             <BsXLg className="w-3.5 h-3.5" />
           </button>
@@ -64,7 +64,7 @@ function ConfirmationModal({
             disabled={loading}
             className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50 ${confirmButtonClass[variant]}`}
           >
-            {loading ? 'Procesando...' : confirmLabel}
+            {loading ? 'Processing...' : confirmLabel}
           </button>
         </div>
       </div>

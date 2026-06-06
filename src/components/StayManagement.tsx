@@ -129,10 +129,10 @@ function statusBadge(status: 'scheduled' | 'active' | 'ended' | 'cancelled') {
 }
 
 function statusLabel(status: 'scheduled' | 'active' | 'ended' | 'cancelled') {
-  if (status === 'active') return 'Activa';
-  if (status === 'scheduled') return 'Programada';
-  if (status === 'cancelled') return 'Cancelada';
-  return 'Finalizada';
+  if (status === 'active') return 'Active';
+  if (status === 'scheduled') return 'Scheduled';
+  if (status === 'cancelled') return 'Cancelled';
+  return 'Ended';
 }
 
 function blocksRoomSchedule(stay: Stay) {
@@ -172,7 +172,7 @@ function StayManagement() {
     open: false,
     title: '',
     message: '',
-    confirmLabel: 'Confirmar',
+    confirmLabel: 'Confirm',
     variant: 'primary',
     onConfirm: null,
   });
@@ -208,7 +208,7 @@ function StayManagement() {
       open: false,
       title: '',
       message: '',
-      confirmLabel: 'Confirmar',
+      confirmLabel: 'Confirm',
       variant: 'primary',
       onConfirm: null,
     });
@@ -234,13 +234,13 @@ function StayManagement() {
         headers: getAuthHeaders(),
       });
       if (!response.ok) {
-        throw new Error('No se pudieron cargar las reservaciones');
+        throw new Error('Unable to load reservations');
       }
 
       const data = await response.json();
       setStays(Array.isArray(data) ? data : []);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'No se pudieron cargar las reservaciones';
+      const message = err instanceof Error ? err.message : 'Unable to load reservations';
       setError(message);
       showNotification(message, 'error');
     } finally {
@@ -395,12 +395,12 @@ function StayManagement() {
     e.preventDefault();
 
     if (!roomNumber.trim() || !checkIn || !checkOut) {
-      showNotification('Habitacion, check-in y check-out son obligatorios', 'warning');
+      showNotification('Room, check-in, and check-out are required', 'warning');
       return;
     }
 
     if (new Date(checkOut) <= new Date(checkIn)) {
-      showNotification('La salida debe ser posterior al check-in', 'warning');
+      showNotification('Check-out must be after check-in', 'warning');
       return;
     }
 
@@ -419,7 +419,7 @@ function StayManagement() {
 
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        throw new Error(payload?.error || 'No se pudo crear la reservacion');
+        throw new Error(payload?.error || 'Unable to create the reservation');
       }
 
       const newStay = (await response.json()) as Stay;
@@ -430,15 +430,15 @@ function StayManagement() {
           headers: getAuthHeaders(),
         });
         if (!qrResponse.ok) {
-          throw new Error('Reservacion creada, pero no se pudo generar el QR');
+          throw new Error('Reservation created, but the QR could not be generated');
         }
 
         const qrData = await qrResponse.json();
         setCurrentQr({ stayId: newStay.stayId, qrCode: qrData.qrCode });
         setQrModalOpen(true);
-        showNotification('Estancia activa creada con QR', 'success');
+        showNotification('Active stay created with QR', 'success');
       } else {
-        showNotification('Reservacion agendada en calendario', 'success');
+        showNotification('Reservation scheduled on calendar', 'success');
       }
 
       setRoomNumber('');
@@ -448,7 +448,7 @@ function StayManagement() {
 
       await fetchStays();
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'No se pudo crear la reservacion';
+      const message = err instanceof Error ? err.message : 'Unable to create the reservation';
       showNotification(message, 'error');
       setError(message);
     } finally {
@@ -464,17 +464,17 @@ function StayManagement() {
       });
 
       if (!response.ok) {
-        throw new Error('No se pudo procesar la rotacion');
+        throw new Error('Unable to process rotation');
       }
 
       const data = await response.json();
       showNotification(
-        `Rotacion aplicada: ${data.ended || 0} finalizadas, ${data.activated || 0} activadas`,
+        `Rotation applied: ${data.ended || 0} ended, ${data.activated || 0} activated`,
         'success'
       );
       await fetchStays();
     } catch (err) {
-      showNotification(err instanceof Error ? err.message : 'Error al procesar rotacion', 'error');
+      showNotification(err instanceof Error ? err.message : 'Error processing rotation', 'error');
     }
   };
 
@@ -487,13 +487,13 @@ function StayManagement() {
       });
 
       if (!response.ok) {
-        throw new Error('No se pudo finalizar la estancia');
+        throw new Error('Unable to end the stay');
       }
 
-      showNotification('Estancia finalizada', 'success');
+      showNotification('Stay ended', 'success');
       await fetchStays();
     } catch (err) {
-      showNotification(err instanceof Error ? err.message : 'No se pudo finalizar la estancia', 'error');
+      showNotification(err instanceof Error ? err.message : 'Unable to end the stay', 'error');
     } finally {
       setLoading(false);
     }
@@ -508,13 +508,13 @@ function StayManagement() {
       });
 
       if (!response.ok) {
-        throw new Error('No se pudo eliminar la reservacion');
+        throw new Error('Unable to delete the reservation');
       }
 
-      showNotification('Reservacion eliminada', 'success');
+      showNotification('Reservation deleted', 'success');
       await fetchStays();
     } catch (err) {
-      showNotification(err instanceof Error ? err.message : 'No se pudo eliminar la reservacion', 'error');
+      showNotification(err instanceof Error ? err.message : 'Unable to delete the reservation', 'error');
     } finally {
       setLoading(false);
     }
@@ -530,7 +530,7 @@ function StayManagement() {
 
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        throw new Error(payload?.error || 'No se pudo cancelar la reservacion');
+        throw new Error(payload?.error || 'Unable to cancel the reservation');
       }
 
       const data = await response.json();
@@ -538,16 +538,16 @@ function StayManagement() {
 
       if (transitions && (transitions.ended > 0 || transitions.activated > 0)) {
         showNotification(
-          `Reservacion cancelada. Rotacion: ${transitions.ended || 0} finalizadas y ${transitions.activated || 0} activadas`,
+          `Reservation cancelled. Rotation: ${transitions.ended || 0} ended and ${transitions.activated || 0} activated`,
           'success'
         );
       } else {
-        showNotification('Reservacion cancelada', 'success');
+        showNotification('Reservation cancelled', 'success');
       }
 
       await fetchStays();
     } catch (err) {
-      showNotification(err instanceof Error ? err.message : 'No se pudo cancelar la reservacion', 'error');
+      showNotification(err instanceof Error ? err.message : 'Unable to cancel the reservation', 'error');
     } finally {
       setLoading(false);
     }
@@ -560,7 +560,7 @@ function StayManagement() {
 
   const handleExtendStay = async () => {
     if (!extendModal.stay || !extendModal.newCheckOut) {
-      showNotification('Indica una nueva fecha de salida', 'warning');
+      showNotification('Enter a new check-out date', 'warning');
       return;
     }
 
@@ -573,14 +573,14 @@ function StayManagement() {
 
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        throw new Error(payload?.error || 'No se pudo extender la reservacion');
+        throw new Error(payload?.error || 'Unable to extend the reservation');
       }
 
       setExtendModal({ open: false, stay: null, newCheckOut: '' });
-      showNotification('Reserva extendida sin conflictos', 'success');
+      showNotification('Reservation extended without conflicts', 'success');
       await fetchStays();
     } catch (err) {
-      showNotification(err instanceof Error ? err.message : 'No se pudo extender la reservacion', 'error');
+      showNotification(err instanceof Error ? err.message : 'Unable to extend the reservation', 'error');
     }
   };
 
@@ -591,14 +591,14 @@ function StayManagement() {
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        throw new Error(payload?.error || 'No se pudo generar el QR');
+        throw new Error(payload?.error || 'Unable to generate the QR');
       }
 
       const qrData = await response.json();
       setCurrentQr({ stayId, qrCode: qrData.qrCode });
       setQrModalOpen(true);
     } catch (err) {
-      showNotification(err instanceof Error ? err.message : 'No se pudo generar el QR', 'error');
+      showNotification(err instanceof Error ? err.message : 'Unable to generate the QR', 'error');
     }
   };
 
@@ -635,7 +635,7 @@ function StayManagement() {
               <button
                 onClick={() => setNotification((prev) => ({ ...prev, open: false }))}
                 className="ml-auto text-current/70 hover:text-current transition-colors"
-                title="Cerrar notificacion"
+                title="Close notification"
               >
                 <CloseIcon className="w-3.5 h-3.5" />
               </button>
@@ -652,8 +652,8 @@ function StayManagement() {
                 <QrCodeIcon className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-auto-primary">Administracion de Estancias</h1>
-                <p className="text-xs text-auto-tertiary">Calendario de reservaciones, QR automatico y extensiones</p>
+                <h1 className="text-xl font-bold text-auto-primary">Stay Management</h1>
+                <p className="text-xs text-auto-tertiary">Reservation calendar, automatic QR, and extensions</p>
               </div>
             </div>
 
@@ -663,7 +663,7 @@ function StayManagement() {
               style={{ backgroundColor: 'var(--hotel-primary)' }}
             >
               <RotationIcon />
-              Procesar rotacion
+              Process rotation
             </button>
           </div>
         </div>
@@ -675,12 +675,12 @@ function StayManagement() {
             <div className="bg-auto-secondary rounded-xl shadow-sm border border-auto p-6">
               <div className="flex items-center gap-2 mb-5 pb-4 border-b border-auto">
                 <CalendarIcon className="text-auto-secondary" />
-                <h2 className="text-base font-bold text-auto-primary">Nueva Reservacion</h2>
+                <h2 className="text-base font-bold text-auto-primary">New Reservation</h2>
               </div>
 
               <form onSubmit={handleCreateStay} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-medium text-auto-secondary mb-1.5">Habitacion</label>
+                  <label className="block text-xs font-medium text-auto-secondary mb-1.5">Room</label>
                   <input
                     type="text"
                     value={roomNumber}
@@ -697,12 +697,12 @@ function StayManagement() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-auto-secondary mb-1.5">Huesped (opcional)</label>
+                  <label className="block text-xs font-medium text-auto-secondary mb-1.5">Guest (optional)</label>
                   <input
                     type="text"
                     value={guestName}
                     onChange={(e) => setGuestName(e.target.value)}
-                    placeholder="Nombre del huesped"
+                    placeholder="Guest name"
                     className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2"
                     style={{
                       backgroundColor: 'var(--color-bg-tertiary)',
@@ -756,7 +756,7 @@ function StayManagement() {
                   className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold text-white transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                   style={{ backgroundColor: 'var(--hotel-primary)' }}
                 >
-                  {loading ? 'Guardando...' : 'Guardar reservacion'}
+                  {loading ? 'Saving...' : 'Save reservation'}
                 </button>
               </form>
             </div>
@@ -791,10 +791,10 @@ function StayManagement() {
                     color: 'var(--color-text)',
                   }}
                 >
-                  <option value="all">Todas las habitaciones</option>
+                  <option value="all">All rooms</option>
                   {uniqueRooms.map((room) => (
                     <option key={room} value={room}>
-                      Habitacion {room}
+                      Room {room}
                     </option>
                   ))}
                 </select>
@@ -833,7 +833,7 @@ function StayManagement() {
                     >
                       <div className="text-xs font-semibold text-auto-primary">{day.getDate()}</div>
                       <div className="mt-2 text-[11px] text-auto-tertiary">
-                        {reservationsCount > 0 ? `${reservationsCount} reserva(s)` : 'Libre'}
+                        {reservationsCount > 0 ? `${reservationsCount} reservation(s)` : 'Available'}
                       </div>
                     </button>
                   );
@@ -847,9 +847,9 @@ function StayManagement() {
           <div className="lg:col-span-2 bg-auto-secondary rounded-xl shadow-sm border border-auto p-6">
             <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
               <div>
-                <h3 className="text-base font-bold text-auto-primary">Timeline Por Habitacion</h3>
+                <h3 className="text-base font-bold text-auto-primary">Timeline By Room</h3>
                 <p className="text-xs text-auto-tertiary">
-                  Vista mensual tipo Gantt para detectar conflictos de reservaciones
+                  Monthly Gantt view to detect reservation conflicts
                 </p>
               </div>
               <div className="text-xs text-auto-tertiary">
@@ -861,11 +861,11 @@ function StayManagement() {
             <div className="overflow-x-auto">
               <div className="min-w-[860px] space-y-3">
                 <div className="grid grid-cols-[120px_1fr] gap-3 text-[11px] text-auto-tertiary font-semibold px-1">
-                  <span>Habitacion</span>
+                  <span>Room</span>
                   <div className="flex justify-between">
-                    <span>Inicio de mes</span>
-                    <span>Mitad</span>
-                    <span>Fin de mes</span>
+                    <span>Start of month</span>
+                    <span>Middle</span>
+                    <span>End of month</span>
                   </div>
                 </div>
 
@@ -908,8 +908,8 @@ function StayManagement() {
                                         : '#6b7280',
                                 opacity: status === 'ended' || status === 'cancelled' ? 0.65 : 1,
                               }}
-                              title={`${stay.guestName || 'Sin huesped'} | ${statusLabel(status)} | ${formatDateTime(stay.checkIn)} - ${formatDateTime(stay.checkOut)}${
-                                hasConflict ? ' | Conflicto detectado' : ''
+                            title={`${stay.guestName || 'No guest'} | ${statusLabel(status)} | ${formatDateTime(stay.checkIn)} - ${formatDateTime(stay.checkOut)}${
+                              hasConflict ? ' | Conflict detected' : ''
                               }`}
                             >
                               {stay.guestName || stay.stayId.slice(0, 6)}
@@ -922,37 +922,37 @@ function StayManagement() {
                 })}
 
                 {timelineData.rows.length === 0 && (
-                  <p className="text-sm text-auto-tertiary py-4">No hay habitaciones para mostrar en el timeline.</p>
+                  <p className="text-sm text-auto-tertiary py-4">No rooms to show in the timeline.</p>
                 )}
               </div>
             </div>
 
             <div className="mt-4 flex flex-wrap gap-3 text-[11px]">
               <span className="inline-flex items-center gap-1 text-auto-secondary">
-                <span className="w-2.5 h-2.5 rounded-sm bg-[#2563eb]" /> Programada
+                <span className="w-2.5 h-2.5 rounded-sm bg-[#2563eb]" /> Scheduled
               </span>
               <span className="inline-flex items-center gap-1 text-auto-secondary">
-                <span className="w-2.5 h-2.5 rounded-sm bg-[#059669]" /> Activa
+                <span className="w-2.5 h-2.5 rounded-sm bg-[#059669]" /> Active
               </span>
               <span className="inline-flex items-center gap-1 text-auto-secondary">
-                <span className="w-2.5 h-2.5 rounded-sm bg-[#6b7280]" /> Finalizada
+                <span className="w-2.5 h-2.5 rounded-sm bg-[#6b7280]" /> Ended
               </span>
               <span className="inline-flex items-center gap-1 text-auto-secondary">
-                <span className="w-2.5 h-2.5 rounded-sm bg-[#f97316] opacity-65" /> Cancelada
+                <span className="w-2.5 h-2.5 rounded-sm bg-[#f97316] opacity-65" /> Cancelled
               </span>
               <span className="inline-flex items-center gap-1 text-auto-secondary">
-                <span className="w-2.5 h-2.5 rounded-sm bg-[#ef4444]" /> Conflicto
+                <span className="w-2.5 h-2.5 rounded-sm bg-[#ef4444]" /> Conflict
               </span>
             </div>
           </div>
 
           <div className="bg-auto-secondary rounded-xl shadow-sm border border-auto p-6">
             <h3 className="text-base font-bold text-auto-primary mb-4">
-              Reservas del dia {new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(selectedDay)}
+              Reservations for {new Intl.DateTimeFormat('en-US', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(selectedDay)}
             </h3>
 
             {dayReservations.length === 0 ? (
-              <p className="text-sm text-auto-tertiary">No hay reservas para el filtro seleccionado en esta fecha.</p>
+              <p className="text-sm text-auto-tertiary">No reservations match the selected filter on this date.</p>
             ) : (
               <div className="space-y-3">
                 {dayReservations.map((stay) => {
@@ -963,8 +963,8 @@ function StayManagement() {
                     <div key={stay.stayId} className="rounded-lg border border-auto p-3">
                       <div className="flex items-center justify-between gap-2">
                         <div>
-                          <p className="text-sm font-semibold text-auto-primary">Habitacion {stay.roomNumber}</p>
-                          <p className="text-xs text-auto-tertiary">{stay.guestName || 'Sin huesped asignado'}</p>
+                          <p className="text-sm font-semibold text-auto-primary">Room {stay.roomNumber}</p>
+                          <p className="text-xs text-auto-tertiary">{stay.guestName || 'No guest assigned'}</p>
                         </div>
                         <span className={`px-2 py-1 rounded-md text-xs font-semibold ${statusBadge(status)}`}>
                           {statusLabel(status)}
@@ -979,25 +979,25 @@ function StayManagement() {
                           disabled={!canExtend}
                           className="px-3 py-1.5 rounded-md text-xs font-semibold text-white disabled:opacity-40"
                           style={{ backgroundColor: 'var(--hotel-primary)' }}
-                          title="Extender reservacion"
+                          title="Extend reservation"
                         >
-                          Extender
+                          Extend
                         </button>
                         <button
                           onClick={() =>
                             openConfirmation({
-                              title: 'Cancelar reservacion',
-                              message: 'Seguro que deseas cancelar esta reservacion?',
-                              confirmLabel: 'Cancelar reservacion',
+                              title: 'Cancel reservation',
+                              message: 'Are you sure you want to cancel this reservation?',
+                              confirmLabel: 'Cancel reservation',
                               variant: 'warning',
                               onConfirm: () => handleCancelStay(stay.stayId),
                             })
                           }
                           disabled={!canCancel}
                           className="px-3 py-1.5 rounded-md text-xs font-semibold border border-auto text-auto-secondary disabled:opacity-40"
-                          title="Cancelar reservacion"
+                          title="Cancel reservation"
                         >
-                          Cancelar
+                          Cancel
                         </button>
                       </div>
                     </div>
@@ -1009,19 +1009,19 @@ function StayManagement() {
 
           <div className="bg-auto-secondary rounded-xl shadow-sm border border-auto p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-auto-primary">Listado General</h3>
-              <span className="text-xs text-auto-tertiary">{stays.length} reservacion(es)</span>
+              <h3 className="text-base font-bold text-auto-primary">General List</h3>
+              <span className="text-xs text-auto-tertiary">{stays.length} reservation(s)</span>
             </div>
 
             <div className="overflow-auto max-h-[460px]">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-auto">
-                    <th className="text-left py-2 px-2 text-xs font-semibold text-auto-secondary">Hab</th>
-                    <th className="text-left py-2 px-2 text-xs font-semibold text-auto-secondary">Huesped</th>
-                    <th className="text-left py-2 px-2 text-xs font-semibold text-auto-secondary">Periodo</th>
-                    <th className="text-left py-2 px-2 text-xs font-semibold text-auto-secondary">Estado</th>
-                    <th className="text-right py-2 px-2 text-xs font-semibold text-auto-secondary">Acciones</th>
+                    <th className="text-left py-2 px-2 text-xs font-semibold text-auto-secondary">Room</th>
+                    <th className="text-left py-2 px-2 text-xs font-semibold text-auto-secondary">Guest</th>
+                    <th className="text-left py-2 px-2 text-xs font-semibold text-auto-secondary">Period</th>
+                    <th className="text-left py-2 px-2 text-xs font-semibold text-auto-secondary">Status</th>
+                    <th className="text-right py-2 px-2 text-xs font-semibold text-auto-secondary">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1050,7 +1050,7 @@ function StayManagement() {
                               onClick={() => openQrModal(stay.stayId)}
                               disabled={!canOpenQr}
                               className="p-1.5 rounded-lg hover:bg-auto-tertiary transition-colors disabled:opacity-40"
-                              title={canOpenQr ? 'Ver QR activo' : 'QR disponible al activarse'}
+                              title={canOpenQr ? 'View active QR' : 'QR available when activated'}
                             >
                               <QrCodeIcon className="w-4 h-4 text-auto-secondary" />
                             </button>
@@ -1059,7 +1059,7 @@ function StayManagement() {
                               onClick={() => openExtendModal(stay)}
                               disabled={!canExtend}
                               className="p-1.5 rounded-lg hover:bg-auto-tertiary transition-colors disabled:opacity-40"
-                              title="Extender reservacion"
+                              title="Extend reservation"
                             >
                               <ArrowRightIcon className="w-4 h-4 text-blue-500" />
                             </button>
@@ -1067,16 +1067,16 @@ function StayManagement() {
                             <button
                               onClick={() =>
                                 openConfirmation({
-                                  title: 'Cancelar reservacion',
-                                  message: 'Seguro que deseas cancelar esta reservacion?',
-                                  confirmLabel: 'Cancelar reservacion',
+                                  title: 'Cancel reservation',
+                                  message: 'Are you sure you want to cancel this reservation?',
+                                  confirmLabel: 'Cancel reservation',
                                   variant: 'warning',
                                   onConfirm: () => handleCancelStay(stay.stayId),
                                 })
                               }
                               disabled={!canCancel}
                               className="p-1.5 rounded-lg hover:bg-auto-tertiary transition-colors disabled:opacity-40"
-                              title="Cancelar reservacion"
+                              title="Cancel reservation"
                             >
                               <CloseIcon className="w-4 h-4 text-orange-500" />
                             </button>
@@ -1085,15 +1085,15 @@ function StayManagement() {
                               <button
                                 onClick={() =>
                                   openConfirmation({
-                                    title: 'Finalizar estancia',
-                                    message: 'Seguro que deseas finalizar esta estancia?',
-                                    confirmLabel: 'Finalizar',
+                                    title: 'End stay',
+                                    message: 'Are you sure you want to end this stay?',
+                                    confirmLabel: 'End',
                                     variant: 'warning',
                                     onConfirm: () => handleEndStay(stay.stayId),
                                   })
                                 }
                                 className="p-1.5 rounded-lg hover:bg-auto-tertiary transition-colors"
-                                title="Finalizar estancia"
+                                title="End stay"
                               >
                                 <StopCircleIcon className="w-4 h-4 text-yellow-500" />
                               </button>
@@ -1102,15 +1102,15 @@ function StayManagement() {
                             <button
                               onClick={() =>
                                 openConfirmation({
-                                  title: 'Eliminar reservacion',
-                                  message: 'Esta accion no se puede deshacer. Deseas continuar?',
-                                  confirmLabel: 'Eliminar',
+                                  title: 'Delete reservation',
+                                  message: 'This action cannot be undone. Do you want to continue?',
+                                  confirmLabel: 'Delete',
                                   variant: 'danger',
                                   onConfirm: () => handleDeleteStay(stay.stayId),
                                 })
                               }
                               className="p-1.5 rounded-lg hover:bg-auto-tertiary transition-colors"
-                              title="Eliminar reservacion"
+                              title="Delete reservation"
                             >
                               <TrashIcon className="w-4 h-4 text-red-500" />
                             </button>
@@ -1130,7 +1130,7 @@ function StayManagement() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-auto-secondary rounded-xl shadow-xl border border-auto max-w-md w-full p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-auto-primary">Extender Reservacion</h3>
+              <h3 className="text-lg font-bold text-auto-primary">Extend Reservation</h3>
               <button
                 onClick={() => setExtendModal({ open: false, stay: null, newCheckOut: '' })}
                 className="p-1 rounded-lg hover:bg-auto-tertiary transition-colors"
@@ -1140,10 +1140,10 @@ function StayManagement() {
             </div>
 
             <p className="text-sm text-auto-secondary mb-3">
-              Habitacion {extendModal.stay.roomNumber} | salida actual: {formatDateTime(extendModal.stay.checkOut)}
+              Room {extendModal.stay.roomNumber} | current check-out: {formatDateTime(extendModal.stay.checkOut)}
             </p>
 
-            <label className="block text-xs font-medium text-auto-secondary mb-1.5">Nueva fecha de salida</label>
+            <label className="block text-xs font-medium text-auto-secondary mb-1.5">New check-out date</label>
             <input
               type="datetime-local"
               value={extendModal.newCheckOut}
@@ -1162,14 +1162,14 @@ function StayManagement() {
                 className="flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold border"
                 style={{ borderColor: 'var(--color-border)' }}
               >
-                Cancelar
+                Cancel
               </button>
               <button
                 onClick={handleExtendStay}
                 className="flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold text-white"
                 style={{ backgroundColor: 'var(--hotel-primary)' }}
               >
-                Confirmar extension
+                Confirm extension
               </button>
             </div>
           </div>
@@ -1180,7 +1180,7 @@ function StayManagement() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-auto-secondary rounded-xl shadow-xl border border-auto max-w-md w-full p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-auto-primary">QR de Estancia Activa</h3>
+              <h3 className="text-lg font-bold text-auto-primary">Active Stay QR</h3>
               <button
                 onClick={() => setQrModalOpen(false)}
                 className="p-1 rounded-lg hover:bg-auto-tertiary transition-colors"
@@ -1204,14 +1204,14 @@ function StayManagement() {
                   color: 'var(--color-text)',
                 }}
               >
-                <PrinterIcon /> Imprimir
+                <PrinterIcon /> Print
               </button>
               <button
                 onClick={handleDownloadQr}
                 className="flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold text-white transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
                 style={{ backgroundColor: 'var(--hotel-primary)' }}
               >
-                <DownloadIcon /> Descargar
+                <DownloadIcon /> Download
               </button>
             </div>
           </div>

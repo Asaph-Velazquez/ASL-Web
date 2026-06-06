@@ -1,0 +1,33 @@
+services:
+  asl-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: asl-server
+    env_file:
+      - .env
+    environment:
+      PORT: 3001
+      HTTPS_PORT: 3002
+      NODE_ENV: production
+      USE_HTTPS: "false"
+      MONGODB_URI: mongodb://mongodb:27017/asl-hotel
+    ports:
+      - "3001:3001"
+    depends_on:
+      - mongodb
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+
+  mongodb:
+    image: mongo:7
+    container_name: asl-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    restart: unless-stopped
+
+volumes:
+  mongodb_data:

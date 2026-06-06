@@ -132,13 +132,13 @@ function Login() {
             Default credentials: admin / hotel2026
           </p>
           <p className="text-xs text-center mt-2" style={{ color: 'var(--text-tertiary)' }}>
-            ¿Necesitas una cuenta?{' '}
+            Need an account?{' '}
             <button
               onClick={() => navigate('/register')}
               className="font-semibold hover:underline"
               style={{ color: 'var(--hotel-primary)' }}
             >
-              Regístrate aquí
+              Register here
             </button>
           </p>
         </div>

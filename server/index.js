@@ -10,6 +10,7 @@ import jwt from 'jsonwebtoken';
 import authRoutes from './routes/auth.js';
 import staysRoutes from './routes/stays.js';
 import staffRoutes from './routes/staff.js';
+import statsRoutes from './routes/stats.js';
 import { Stay } from './models/index.js';
 import { processStayTransitions } from './services/stayLifecycle.js';
 import {
@@ -82,6 +83,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/stays', staysRoutes);
 app.use('/api/staff', staffRoutes);
+app.use('/api/stats', statsRoutes);
 
 // Crear servidor HTTP
 const server = createServer(app);
@@ -205,7 +207,7 @@ wss.on('connection', async (ws) => {
             cancelledBy,
             cancelledByName: cancelledBy === 'staff'
               ? (mensaje.payload?.cancelledByName || 'Personal del Hotel')
-              : (metaCancel?.guestName || mensaje.payload?.guestName || 'Huésped'),
+              : (metaCancel?.guestName || mensaje.payload?.guestName || 'Guest'),
             cancelledAt: new Date().toISOString(),
             status: 'cancelled'
           };
@@ -228,7 +230,7 @@ wss.on('connection', async (ws) => {
       }
     } catch (error) {
       console.error('❌ Error al procesar mensaje:', error.message);
-      ws.send(JSON.stringify({ error: 'Formato de mensaje inválido' }));
+      ws.send(JSON.stringify({ error: 'Invalid message format' }));
     }
   });
 

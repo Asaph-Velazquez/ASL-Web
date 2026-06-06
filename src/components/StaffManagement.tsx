@@ -46,7 +46,7 @@ const INITIAL_REGISTER_FORM: RegisterForm = {
 };
 
 const ROLE_META: Record<StaffUser['role'], { label: string; badgeClass: string }> = {
-  admin: { label: 'Administrador', badgeClass: 'bg-red-500' },
+  admin: { label: 'Administrator', badgeClass: 'bg-red-500' },
   staff: { label: 'Staff', badgeClass: 'bg-green-500' },
 };
 
@@ -64,7 +64,7 @@ const getApiErrorMessage = async (response: Response, fallback: string) => {
 
   const text = await response.text();
   if (text?.trim().startsWith('<!DOCTYPE') || text?.trim().startsWith('<html')) {
-    return `${fallback} (respuesta HTML del servidor, status ${response.status})`;
+    return `${fallback} (HTML response from server, status ${response.status})`;
   }
 
   return text || fallback;
@@ -121,14 +121,14 @@ function StaffManagement() {
       });
 
       if (!response.ok) {
-        throw new Error('No se pudo cargar la lista de staff');
+        throw new Error('Unable to load the staff list');
       }
 
       const data = await response.json();
       setStaffList(data.users || []);
       setLoading(false);
     } catch (err) {
-      setError('Error al cargar la lista de staff');
+      setError('Error loading the staff list');
       setLoading(false);
     }
   };
@@ -149,7 +149,7 @@ function StaffManagement() {
 
   const handleUpdateUser = async (userId: string) => {
     if (!editForm.username.trim() || !editForm.fullName.trim()) {
-      showNotification('Usuario y nombre completo son obligatorios', 'warning');
+      showNotification('Username and full name are required', 'warning');
       return;
     }
 
@@ -165,7 +165,7 @@ function StaffManagement() {
       });
 
       if (!response.ok) {
-        const message = await getApiErrorMessage(response, 'No se pudo actualizar el usuario');
+        const message = await getApiErrorMessage(response, 'Unable to update the user');
         throw new Error(message);
       }
 
@@ -179,14 +179,14 @@ function StaffManagement() {
         )
       );
       cancelEditingUser();
-      showNotification('Usuario actualizado exitosamente', 'success');
+      showNotification('User updated successfully', 'success');
     } catch (err: any) {
-      showNotification(err.message || 'Error al actualizar el usuario', 'error');
+      showNotification(err.message || 'Error updating the user', 'error');
     }
   };
 
   const handleDeleteUser = async (userId: string, username: string) => {
-    if (!confirm(`¿Estás seguro de eliminar al usuario "${username}"?`)) {
+    if (!confirm(`Are you sure you want to delete user "${username}"?`)) {
       return;
     }
 
@@ -197,14 +197,14 @@ function StaffManagement() {
       });
 
       if (!response.ok) {
-        throw new Error('No se pudo eliminar el usuario');
+        throw new Error('Unable to delete the user');
       }
 
       // Actualizar la lista localmente
       setStaffList(prev => prev.filter(user => user._id !== userId));
-      showNotification('Usuario eliminado exitosamente', 'success');
+      showNotification('User deleted successfully', 'success');
     } catch (err) {
-      showNotification('Error al eliminar el usuario', 'error');
+      showNotification('Error deleting the user', 'error');
     }
   };
 
@@ -213,17 +213,17 @@ function StaffManagement() {
 
     // Validaciones
     if (!registerForm.username || !registerForm.password) {
-      showNotification('Usuario y contraseña son obligatorios', 'warning');
+      showNotification('Username and password are required', 'warning');
       return;
     }
 
     if (registerForm.password !== registerForm.confirmPassword) {
-      showNotification('Las contraseñas no coinciden', 'warning');
+      showNotification('Passwords do not match', 'warning');
       return;
     }
 
     if (registerForm.password.length < 6) {
-      showNotification('La contraseña debe tener al menos 6 caracteres', 'warning');
+      showNotification('Password must be at least 6 characters long', 'warning');
       return;
     }
 
@@ -240,24 +240,24 @@ function StaffManagement() {
       });
 
       if (!response.ok) {
-        const message = await getApiErrorMessage(response, 'Error al registrar usuario');
+        const message = await getApiErrorMessage(response, 'Error registering user');
         throw new Error(message);
       }
 
-      showNotification('Usuario registrado exitosamente', 'success');
+      showNotification('User registered successfully', 'success');
       closeRegisterModal();
       
       // Recargar la lista
       fetchStaffList();
     } catch (err: any) {
-      showNotification(err.message || 'Error al registrar usuario', 'error');
+      showNotification(err.message || 'Error registering user', 'error');
     }
   };
 
   if (loading) {
     return (
       <div className="min-h-screen bg-auto-primary flex items-center justify-center">
-        <div className="text-auto-primary">Cargando...</div>
+        <div className="text-auto-primary">Loading...</div>
       </div>
     );
   }
@@ -280,7 +280,7 @@ function StaffManagement() {
               <button
                 onClick={() => setNotification((prev) => ({ ...prev, open: false }))}
                 className="ml-auto text-current/70 hover:text-current transition-colors"
-                title="Cerrar notificación"
+                title="Close notification"
               >
                 <XIcon className="w-3.5 h-3.5" />
               </button>
@@ -304,10 +304,10 @@ function StaffManagement() {
               </div>
               <div>
                 <h1 className="text-xl font-bold text-auto-primary tracking-tight">
-                  Administración de Staff
+                  Staff Management
                 </h1>
                 <p className="text-xs text-auto-tertiary">
-                  Gestión de usuarios y roles
+                  Manage users and roles
                 </p>
               </div>
             </div>
@@ -316,13 +316,13 @@ function StaffManagement() {
                 onClick={() => setShowRegisterModal(true)}
                 className="px-4 py-2 rounded-lg text-sm font-medium text-white transition-all hover:scale-105 flex items-center gap-2"
                 style={{ backgroundColor: "var(--hotel-primary)" }}
-                title="Registrar nuevo usuario"
+                title="Register new user"
               >
                 <PlusIcon className="w-4 h-4" />
-                Registrar Usuario
+                Register User
               </button>
               <div className="text-sm text-auto-secondary">
-                {staffList.length} usuarios registrados
+                {staffList.length} registered users
               </div>
             </div>
           </div>
@@ -342,11 +342,11 @@ function StaffManagement() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-auto">
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-auto-secondary">Usuario</th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-auto-secondary">Nombre Completo</th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-auto-secondary">Rol</th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-auto-secondary">Fecha de Registro</th>
-                  <th className="text-center py-3 px-4 text-xs font-semibold text-auto-secondary">Acciones</th>
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-auto-secondary">Username</th>
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-auto-secondary">Full Name</th>
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-auto-secondary">Role</th>
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-auto-secondary">Registration Date</th>
+                  <th className="text-center py-3 px-4 text-xs font-semibold text-auto-secondary">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -393,7 +393,7 @@ function StaffManagement() {
                           } as React.CSSProperties}
                         >
                           <option value="staff">Staff</option>
-                          <option value="admin">Administrador</option>
+                          <option value="admin">Administrator</option>
                         </select>
                       ) : (
                         <span className={`px-3 py-1 rounded-md text-xs font-semibold text-white ${ROLE_META[user.role].badgeClass}`}>
@@ -419,13 +419,13 @@ function StaffManagement() {
                               className="px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-all hover:scale-105"
                               style={{ backgroundColor: "var(--success)" }}
                             >
-                              Guardar
+                              Save
                             </button>
                             <button
                               onClick={cancelEditingUser}
                               className="px-3 py-1.5 rounded-lg text-xs font-medium border border-auto text-auto-secondary transition-all hover:bg-auto-tertiary"
                             >
-                              Cancelar
+                              Cancel
                             </button>
                           </>
                         ) : (
@@ -434,7 +434,7 @@ function StaffManagement() {
                               onClick={() => startEditingUser(user)}
                               className="p-2 rounded-lg transition-all hover:bg-auto-tertiary"
                               style={{ color: "var(--hotel-primary)" }}
-                              title="Editar usuario"
+                              title="Edit user"
                             >
                               <EditIcon />
                             </button>
@@ -442,7 +442,7 @@ function StaffManagement() {
                               onClick={() => handleDeleteUser(user._id, user.username)}
                               className="p-2 rounded-lg transition-all hover:bg-red-50"
                               style={{ color: "var(--problem)" }}
-                              title="Eliminar usuario"
+                              title="Delete user"
                             >
                               <TrashIcon />
                             </button>
@@ -455,7 +455,7 @@ function StaffManagement() {
                 {staffList.length === 0 && (
                   <tr>
                     <td colSpan={5} className="py-12 text-center text-auto-tertiary text-sm">
-                      No hay usuarios registrados
+                      No registered users
                     </td>
                   </tr>
                 )}
@@ -467,8 +467,8 @@ function StaffManagement() {
         {/* Caja informativa */}
         <div className="mt-6 p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
           <p className="text-xs text-blue-700 dark:text-blue-400">
-            <strong>Nota:</strong> Solo los administradores pueden asignar el rol de "Administrador" a otros usuarios.
-            Los usuarios con rol "Staff" tienen permisos básicos del sistema.
+            <strong>Note:</strong> Only administrators can assign the "Administrator" role to other users.
+            Users with the "Staff" role have basic system permissions.
           </p>
         </div>
       </div>
@@ -479,11 +479,11 @@ function StaffManagement() {
           <div className="w-full max-w-md rounded-xl shadow-2xl p-6 bg-auto-secondary border border-auto">
             {/* Header del Modal */}
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-auto-primary">Registrar Nuevo Usuario</h2>
+              <h2 className="text-xl font-bold text-auto-primary">Register New User</h2>
               <button
                 onClick={closeRegisterModal}
                 className="p-2 rounded-lg hover:bg-auto-tertiary transition-all"
-                title="Cerrar"
+                title="Close"
               >
                 <XIcon className="w-4 h-4 text-auto-secondary" />
               </button>
@@ -494,7 +494,7 @@ function StaffManagement() {
               {/* Nombre Completo */}
               <div>
                 <label htmlFor="fullName" className="block text-sm font-medium mb-2 text-auto-secondary">
-                  Nombre Completo *
+                  Full Name *
                 </label>
                 <input
                   id="fullName"
@@ -503,7 +503,7 @@ function StaffManagement() {
                   onChange={(e) => updateRegisterField('fullName', e.target.value)}
                   className="w-full px-4 py-2 rounded-lg border border-auto bg-auto-tertiary text-auto-primary focus:outline-none focus:ring-2"
                   style={{ "--tw-ring-color": "var(--hotel-primary)" } as React.CSSProperties}
-                  placeholder="Ej: Juan Pérez"
+                  placeholder="Example: John Smith"
                   required
                 />
               </div>
@@ -511,7 +511,7 @@ function StaffManagement() {
               {/* Usuario */}
               <div>
                 <label htmlFor="username" className="block text-sm font-medium mb-2 text-auto-secondary">
-                  Usuario *
+                  Username *
                 </label>
                 <input
                   id="username"
@@ -520,7 +520,7 @@ function StaffManagement() {
                   onChange={(e) => updateRegisterField('username', e.target.value)}
                   className="w-full px-4 py-2 rounded-lg border border-auto bg-auto-tertiary text-auto-primary focus:outline-none focus:ring-2"
                   style={{ "--tw-ring-color": "var(--hotel-primary)" } as React.CSSProperties}
-                  placeholder="Nombre de usuario"
+                  placeholder="Username"
                   required
                 />
               </div>
@@ -528,7 +528,7 @@ function StaffManagement() {
               {/* Contraseña */}
               <div>
                 <label htmlFor="password" className="block text-sm font-medium mb-2 text-auto-secondary">
-                  Contraseña *
+                  Password *
                 </label>
                 <input
                   id="password"
@@ -537,7 +537,7 @@ function StaffManagement() {
                   onChange={(e) => updateRegisterField('password', e.target.value)}
                   className="w-full px-4 py-2 rounded-lg border border-auto bg-auto-tertiary text-auto-primary focus:outline-none focus:ring-2"
                   style={{ "--tw-ring-color": "var(--hotel-primary)" } as React.CSSProperties}
-                  placeholder="Mínimo 6 caracteres"
+                  placeholder="At least 6 characters"
                   required
                 />
               </div>
@@ -545,7 +545,7 @@ function StaffManagement() {
               {/* Confirmar Contraseña */}
               <div>
                 <label htmlFor="confirmPassword" className="block text-sm font-medium mb-2 text-auto-secondary">
-                  Confirmar Contraseña *
+                  Confirm Password *
                 </label>
                 <input
                   id="confirmPassword"
@@ -554,7 +554,7 @@ function StaffManagement() {
                   onChange={(e) => updateRegisterField('confirmPassword', e.target.value)}
                   className="w-full px-4 py-2 rounded-lg border border-auto bg-auto-tertiary text-auto-primary focus:outline-none focus:ring-2"
                   style={{ "--tw-ring-color": "var(--hotel-primary)" } as React.CSSProperties}
-                  placeholder="Repite la contraseña"
+                  placeholder="Repeat password"
                   required
                 />
               </div>
@@ -562,7 +562,7 @@ function StaffManagement() {
               {/* Rol */}
               <div>
                 <label htmlFor="role" className="block text-sm font-medium mb-2 text-auto-secondary">
-                  Rol *
+                  Role *
                 </label>
                 <select
                   id="role"
@@ -572,7 +572,7 @@ function StaffManagement() {
                   style={{ "--tw-ring-color": "var(--hotel-primary)" } as React.CSSProperties}
                 >
                   <option value="staff">Staff</option>
-                  <option value="admin">Administrador</option>
+                  <option value="admin">Administrator</option>
                 </select>
               </div>
 
@@ -583,14 +583,14 @@ function StaffManagement() {
                   onClick={closeRegisterModal}
                   className="flex-1 py-2.5 rounded-lg font-medium border border-auto text-auto-secondary transition-all hover:bg-auto-tertiary"
                 >
-                  Cancelar
+                  Cancel
                 </button>
                 <button
                   type="submit"
                   className="flex-1 py-2.5 rounded-lg font-medium text-white transition-all hover:shadow-lg active:scale-95"
                   style={{ backgroundColor: "var(--hotel-primary)" }}
                 >
-                  Registrar
+                  Register
                 </button>
               </div>
             </form>

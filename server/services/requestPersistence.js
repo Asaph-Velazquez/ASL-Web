@@ -29,7 +29,7 @@ export async function persistNewRequest(payload, meta = {}) {
     requestId,
     stayId: meta.stayId || payload.stayId || null,
     roomNumber: meta.roomNumber || payload.roomNumber,
-    guestName: actorName || 'Huesped',
+    guestName: actorName || 'Guest',
     type: payload.type,
     message: payload.message,
     priority: payload.priority || 'medium',

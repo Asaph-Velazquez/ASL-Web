@@ -20,17 +20,17 @@ function Register() {
 
     // Validaciones
     if (!formData.username || !formData.password || !formData.fullName) {
-      setError('Por favor completa todos los campos obligatorios');
+      setError('Please complete all required fields');
       return;
     }
 
     if (formData.password !== formData.confirmPassword) {
-      setError('Las contraseñas no coinciden');
+      setError('Passwords do not match');
       return;
     }
 
     if (formData.password.length < 6) {
-      setError('La contraseña debe tener al menos 6 caracteres');
+      setError('Password must be at least 6 characters long');
       return;
     }
 
@@ -53,16 +53,16 @@ function Register() {
 
       if (!response.ok) {
         const data = await response.json();
-        setError(data.error || 'Error al registrar usuario');
+        setError(data.error || 'Error registering user');
         setLoading(false);
         return;
       }
 
       // Registro exitoso, redirigir a login
-      alert('✅ Usuario registrado exitosamente');
+      alert('User registered successfully');
       navigate('/login');
     } catch (err) {
-      setError('Error al conectar con el servidor. Verifica tu conexión.');
+      setError('Unable to connect to the server. Check your connection.');
     } finally {
       setLoading(false);
     }
@@ -83,7 +83,7 @@ function Register() {
             >
               <BsPersonBadge className="w-8 h-8 text-white" />
             </div>
-            <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Registro de Staff</h1>
+            <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Staff Registration</h1>
             <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>Canada Central Hotel</p>
           </div>
 
@@ -99,7 +99,7 @@ function Register() {
             {/* Campo de nombre completo */}
             <div>
               <label htmlFor="fullName" className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
-                Nombre Completo *
+                Full Name *
               </label>
               <input
                 id="fullName"
@@ -112,7 +112,7 @@ function Register() {
                   borderColor: 'var(--border-color)',
                   color: 'var(--text-primary)',
                 }}
-                placeholder="Ej: Juan Pérez"
+                placeholder="Example: John Smith"
                 disabled={loading}
               />
             </div>
@@ -120,7 +120,7 @@ function Register() {
             {/* Campo de usuario */}
             <div>
               <label htmlFor="username" className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
-                Usuario *
+                Username *
               </label>
               <input
                 id="username"
@@ -133,7 +133,7 @@ function Register() {
                   borderColor: 'var(--border-color)',
                   color: 'var(--text-primary)',
                 }}
-                placeholder="Nombre de usuario"
+                placeholder="Username"
                 disabled={loading}
               />
             </div>
@@ -141,7 +141,7 @@ function Register() {
             {/* Campo de contrasena */}
             <div>
               <label htmlFor="password" className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
-                Contraseña *
+                Password *
               </label>
               <input
                 id="password"
@@ -154,7 +154,7 @@ function Register() {
                   borderColor: 'var(--border-color)',
                   color: 'var(--text-primary)',
                 }}
-                placeholder="Mínimo 6 caracteres"
+                placeholder="At least 6 characters"
                 disabled={loading}
               />
             </div>
@@ -162,7 +162,7 @@ function Register() {
             {/* Campo de confirmar contrasena */}
             <div>
               <label htmlFor="confirmPassword" className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
-                Confirmar Contraseña *
+                Confirm Password *
               </label>
               <input
                 id="confirmPassword"
@@ -175,7 +175,7 @@ function Register() {
                   borderColor: 'var(--border-color)',
                   color: 'var(--text-primary)',
                 }}
-                placeholder="Repite la contraseña"
+                placeholder="Repeat password"
                 disabled={loading}
               />
             </div>
@@ -189,20 +189,20 @@ function Register() {
                 background: loading ? '#9ca3af' : 'linear-gradient(135deg, var(--hotel-primary), var(--hotel-secondary))',
               }}
             >
-              {loading ? 'Registrando...' : 'Registrar Usuario'}
+              {loading ? 'Registering...' : 'Register User'}
             </button>
           </form>
 
           {/* Pie */}
           <div className="text-center mt-6 space-y-2">
             <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
-              ¿Ya tienes una cuenta?{' '}
+              Already have an account?{' '}
               <button
                 onClick={() => navigate('/login')}
                 className="font-semibold hover:underline"
                 style={{ color: 'var(--hotel-primary)' }}
               >
-                Inicia sesión
+                Log in
               </button>
             </p>
           </div>

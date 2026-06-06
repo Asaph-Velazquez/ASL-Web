@@ -87,6 +87,44 @@ npm run dev
 
 El panel web se ejecutará en `http://localhost:5173`
 
+### Dockerizar solo el server
+
+La carpeta [`server`](C:\Users\samur\Downloads\TT\ASL-System\ASL-Web\server) ya incluye:
+- `Dockerfile` para construir la imagen del backend
+- `.dockerignore` para no subir dependencias, logs ni secretos locales
+- `compose.yaml` para levantar backend + MongoDB en contenedores
+
+#### Opción 1: Ejecutar solo el backend en Docker
+
+Desde `ASL-Web/server`:
+
+```bash
+docker build -t asl-server .
+docker run --env-file .env -p 3001:3001 asl-server
+```
+
+Si MongoDB está fuera del contenedor, configura `MONGODB_URI` con el host real antes de levantarlo. Para despliegue en nube, normalmente conviene usar Mongo Atlas u otra base administrada.
+
+#### Opción 2: Backend + MongoDB con Docker Compose
+
+Desde `ASL-Web/server`:
+
+```bash
+docker compose up --build
+```
+
+Esto expone:
+- API/WebSocket en `http://localhost:3001`
+- MongoDB en `mongodb://localhost:27017`
+
+Para este modo, el `compose.yaml` ya fuerza `MONGODB_URI=mongodb://mongodb:27017/asl-hotel` dentro de la red interna de Docker.
+
+#### Notas para nube
+
+- No incluyas `.env` dentro de la imagen; inyéctalo con variables del proveedor.
+- En cloud normalmente `USE_HTTPS=false`, porque el HTTPS lo termina el balanceador o proxy.
+- Los logs del contenedor se complementan con el volumen `./logs:/app/logs`; en producción puedes cambiarlo por almacenamiento persistente o logging centralizado.
+
 ### Compilar para producción
 
 ```bash

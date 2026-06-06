@@ -25,7 +25,7 @@ router.post('/', validateBody(schemas.createStay), async (req, res) => {
     // Validar entrada
     if (!roomNumber || !checkIn || !checkOut) {
       return res.status(400).json({ 
-        error: 'roomNumber, checkIn y checkOut son requeridos'
+        error: 'roomNumber, checkIn, and checkOut are required'
       });
     }
 
@@ -34,11 +34,11 @@ router.post('/', validateBody(schemas.createStay), async (req, res) => {
     const checkOutDate = toDate(checkOut);
     
     if (!checkInDate || !checkOutDate) {
-      return res.status(400).json({ error: 'Formato de fecha invalido' });
+      return res.status(400).json({ error: 'Invalid date format' });
     }
 
     if (checkOutDate <= checkInDate) {
-      return res.status(400).json({ error: 'checkOut debe ser mayor que checkIn' });
+      return res.status(400).json({ error: 'checkOut must be after checkIn' });
     }
 
     const hasConflict = await hasRoomConflict({
@@ -49,7 +49,7 @@ router.post('/', validateBody(schemas.createStay), async (req, res) => {
 
     if (hasConflict) {
       return res.status(409).json({
-        error: 'Existe un conflicto de horario para esa habitacion',
+        error: 'There is a schedule conflict for that room',
       });
     }
 
@@ -84,7 +84,7 @@ router.post('/', validateBody(schemas.createStay), async (req, res) => {
     });
   } catch (error) {
     console.error('Error creating stay:', error);
-    return res.status(500).json({ error: 'No se pudo crear la reservacion' });
+    return res.status(500).json({ error: 'Unable to create the reservation' });
   }
 });
 
@@ -99,7 +99,7 @@ router.get('/', async (req, res) => {
     return res.json(stays);
   } catch (error) {
     console.error('Error fetching stays:', error);
-    return res.status(500).json({ error: 'No se pudieron obtener las reservaciones' });
+    return res.status(500).json({ error: 'Unable to get reservations' });
   }
 });
 
@@ -113,7 +113,7 @@ router.post('/process-transitions', async (_req, res) => {
     return res.json({ ok: true, ...result });
   } catch (error) {
     console.error('Error processing transitions:', error);
-    return res.status(500).json({ error: 'No se pudo procesar la rotacion de reservaciones' });
+    return res.status(500).json({ error: 'Unable to process reservation rotation' });
   }
 });
 
@@ -134,7 +134,7 @@ router.get('/:stayId/qr', async (req, res) => {
     }
 
     if (!stay.active || stay.status !== 'active') {
-      return res.status(409).json({ error: 'La reservacion aun no esta activa para generar QR' });
+      return res.status(409).json({ error: 'The reservation is not active yet, so a QR cannot be generated' });
     }
 
     if (!stay.qrToken) {
@@ -192,16 +192,16 @@ router.patch('/:stayId/extend', validateBody(schemas.extendStay), async (req, re
     }
 
     if (stay.status === 'ended' || stay.status === 'cancelled') {
-      return res.status(400).json({ error: 'No se puede extender una estancia finalizada o cancelada' });
+      return res.status(400).json({ error: 'Ended or cancelled stays cannot be extended' });
     }
 
     const newCheckOutDate = toDate(newCheckOut);
     if (!newCheckOutDate) {
-      return res.status(400).json({ error: 'Formato de fecha invalido para nueva salida' });
+      return res.status(400).json({ error: 'Invalid date format for the new check-out' });
     }
 
     if (newCheckOutDate <= stay.checkOut) {
-      return res.status(400).json({ error: 'La nueva salida debe ser posterior a la salida actual' });
+      return res.status(400).json({ error: 'The new check-out must be after the current check-out' });
     }
 
     const hasConflict = await hasRoomConflict({
@@ -213,7 +213,7 @@ router.patch('/:stayId/extend', validateBody(schemas.extendStay), async (req, re
 
     if (hasConflict) {
       return res.status(409).json({
-        error: 'No se puede extender: existe conflicto con otra reservacion en el calendario',
+        error: 'Cannot extend: another reservation conflicts on the calendar',
       });
     }
 
@@ -230,7 +230,7 @@ router.patch('/:stayId/extend', validateBody(schemas.extendStay), async (req, re
     });
   } catch (error) {
     console.error('Error extending stay:', error);
-    return res.status(500).json({ error: 'No se pudo extender la reservacion' });
+    return res.status(500).json({ error: 'Unable to extend the reservation' });
   }
 });
 
@@ -248,11 +248,11 @@ router.patch('/:stayId/cancel', async (req, res) => {
     }
 
     if (stay.status === 'ended') {
-      return res.status(400).json({ error: 'No se puede cancelar una estancia finalizada' });
+      return res.status(400).json({ error: 'Ended stays cannot be cancelled' });
     }
 
     if (stay.status === 'cancelled') {
-      return res.status(400).json({ error: 'La reservacion ya estaba cancelada' });
+      return res.status(400).json({ error: 'The reservation was already cancelled' });
     }
 
     stay.active = false;
@@ -268,7 +268,7 @@ router.patch('/:stayId/cancel', async (req, res) => {
     });
   } catch (error) {
     console.error('Error cancelling stay:', error);
-    return res.status(500).json({ error: 'No se pudo cancelar la reservacion' });
+    return res.status(500).json({ error: 'Unable to cancel the reservation' });
   }
 });
 

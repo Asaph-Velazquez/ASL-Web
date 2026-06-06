@@ -16,7 +16,7 @@ function isValidDateString(value) {
 export const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
-  message: { error: 'Demasiadas solicitudes. Intenta más tarde.' },
+  message: { error: 'Too many requests. Try again later.' },
   standardHeaders: true,
   legacyHeaders: false
 });
@@ -202,8 +202,8 @@ export const schemas = {
   createStay: z.object({
     roomNumber: z.string().min(1).max(10).regex(/^[A-Za-z0-9-]+$/),
     guestName: z.string().max(100).optional(),
-    checkIn: z.string().min(1).max(40).refine(isValidDateString, 'Formato de checkIn inválido'),
-    checkOut: z.string().min(1).max(40).refine(isValidDateString, 'Formato de checkOut inválido')
+    checkIn: z.string().min(1).max(40).refine(isValidDateString, 'Invalid checkIn format'),
+    checkOut: z.string().min(1).max(40).refine(isValidDateString, 'Invalid checkOut format')
   }),
 
   // Registro de huésped
@@ -213,7 +213,7 @@ export const schemas = {
 
   // Extensión de estancia
   extendStay: z.object({
-    newCheckOut: z.string().min(1).max(40).refine(isValidDateString, 'Formato de nueva salida inválido')
+    newCheckOut: z.string().min(1).max(40).refine(isValidDateString, 'Invalid new check-out format')
   }),
 
   // Actualizar stay
@@ -242,7 +242,7 @@ export function validateBody(schema) {
         errors: error.errors
       });
       return res.status(400).json({
-        error: 'Datos inválidos',
+        error: 'Invalid data',
         details: error.errors.map(e => ({
           field: e.path.join('.'),
           message: e.message

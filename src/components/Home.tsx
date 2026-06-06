@@ -6,11 +6,11 @@ import {
   BsArrowRepeat,
   BsBoxArrowRight,
   BsBuildingsFill,
+  BsBarChartLine,
   BsChatDots,
   BsCheckCircle,
   BsCheckLg,
   BsClock,
-  BsExclamationTriangle,
   BsFilter,
   BsHourglassSplit,
   BsInbox,
@@ -39,7 +39,6 @@ const ClockIcon = ({ className = "w-4 h-4" }) => <BsClock className={className} 
 const ChatIcon = ({ className = "w-4 h-4" }) => <BsChatDots className={className} />;
 const HourglassIcon = ({ className = "w-12 h-12" }) => <BsHourglassSplit className={className} />;
 const ArrowRepeatIcon = ({ className = "w-12 h-12" }) => <BsArrowRepeat className={className} />;
-const ExclamationTriangleIcon = ({ className = "w-12 h-12" }) => <BsExclamationTriangle className={className} />;
 const CheckCircleIcon = ({ className = "w-4 h-4" }) => <BsCheckCircle className={className} />;
 const XCircleIcon = ({ className = "w-4 h-4" }) => <BsXCircle className={className} />;
 const CheckIcon = ({ className = "w-4 h-4" }) => <BsCheckLg className={className} />;
@@ -50,6 +49,7 @@ const XIcon = ({ className = "w-4 h-4" }) => <BsXLg className={className} />;
 const LogoutIcon = ({ className = "w-4 h-4" }) => <BsBoxArrowRight className={className} />;
 const AdminIcon = ({ className = "w-4 h-4" }) => <BsPersonBadge className={className} />;
 const QrCodeIcon = ({ className = "w-4 h-4" }) => <BsQrCode className={className} />;
+const StatsIcon = ({ className = "w-4 h-4" }) => <BsBarChartLine className={className} />;
 
 // Tipos de datos
 interface Peticion {
@@ -394,10 +394,10 @@ function Home() {
               </div>
               <div>
                 <h1 className="text-xl font-bold text-auto-primary tracking-tight">
-                  Panel de Control ASL
+                  ASL Control Panel
                 </h1>
                 <p className="text-xs text-auto-tertiary">
-                  Gestión en tiempo real
+                  Real-time management
                 </p>
               </div>
             </div>
@@ -407,10 +407,10 @@ function Home() {
                   onClick={() => navigate("/admin")}
                   className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:scale-105 flex items-center gap-1.5 text-white"
                   style={{ backgroundColor: "var(--hotel-secondary)" }}
-                  title="Administracion de Staff"
+                  title="Staff Management"
                 >
                   <AdminIcon className="w-3.5 h-3.5" />
-                  Administracion
+                  Management
                 </button>
               )}
               <button
@@ -420,24 +420,33 @@ function Home() {
                 title="Manage guest stays and QR codes"
               >
                 <QrCodeIcon className="w-3.5 h-3.5" />
-                Administrar Estancias
+                Manage Stays
+              </button>
+              <button
+                onClick={() => navigate("/statistics")}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:scale-105 flex items-center gap-1.5 text-white"
+                style={{ backgroundColor: "var(--success)" }}
+                title="View service rating statistics"
+              >
+                <StatsIcon className="w-3.5 h-3.5" />
+                Statistics
               </button>
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-auto-tertiary/50 border border-auto">
                 <div
                   className={`w-2 h-2 rounded-full ${estaConectado ? "bg-green-500 animate-pulse" : "bg-red-500"}`}
                 ></div>
                 <span className="text-xs font-medium text-auto-secondary">
-                  {estaConectado ? "En línea" : "Desconectado"}
+                  {estaConectado ? "Online" : "Disconnected"}
                 </span>
               </div>
               <button
                 onClick={handleLogout}
                 className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:scale-105 flex items-center gap-1.5 border border-auto hover:bg-auto-tertiary"
                 style={{ color: "var(--text-primary)" }}
-                title="Cerrar sesión"
+                title="Log out"
               >
                 <LogoutIcon className="w-3.5 h-3.5" />
-                Salir
+                Logout
               </button>
             </div>
           </div>
@@ -447,25 +456,25 @@ function Home() {
       <div className="max-w-7xl mx-auto px-6 py-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <TarjetaEstadistica
-            titulo="Pendientes"
+            titulo="Pending"
             valor={contadorPendientes}
             icono={<HourglassIcon />}
             color="var(--warning)"
           />
           <TarjetaEstadistica
-            titulo="En Progreso"
+            titulo="In Progress"
             valor={contadorEnProgreso}
             icono={<ArrowRepeatIcon />}
             color="var(--hotel-secondary)"
           />
           <TarjetaEstadistica
-            titulo="Completadas"
+            titulo="Completed"
             valor={contadorCompletadas}
             icono={<CheckCircleIcon className="w-12 h-12" />}
             color="var(--success)"
           />
           <TarjetaEstadistica
-            titulo="Canceladas"
+            titulo="Cancelled"
             valor={contadorCanceladas}
             icono={<XCircleIcon className="w-12 h-12" />}
             color="#DC2626"
@@ -485,12 +494,12 @@ function Home() {
                   </div>
                   <div>
                     <h2 className="text-lg font-bold text-auto-primary">
-                      Peticiones
+                      Requests
                     </h2>
                     <p className="text-xs text-auto-tertiary">
                       {filtrosActivos > 0
-                        ? `${peticionesFiltradas.length} de ${peticiones.length} solicitudes`
-                        : `${peticiones.length} solicitudes totales`}
+                        ? `${peticionesFiltradas.length} of ${peticiones.length} requests`
+                        : `${peticiones.length} total requests`}
                     </p>
                   </div>
                 </div>
@@ -502,8 +511,8 @@ function Home() {
                     <InboxIcon className="w-16 h-16 mx-auto mb-3 opacity-30" />
                     <p className="text-sm">
                       {filtrosActivos > 0
-                        ? "No hay peticiones que coincidan con los filtros"
-                        : "No hay peticiones en este momento"}
+                        ? "No requests match the filters"
+                        : "No requests at this time"}
                     </p>
                   </div>
                 ) : (
@@ -532,12 +541,12 @@ function Home() {
                   </div>
                   <div>
                     <h2 className="text-base font-bold text-auto-primary">
-                      Filtros
+                      Filters
                     </h2>
                     <p className="text-xs text-auto-tertiary">
                       {filtrosActivos > 0
-                        ? `${filtrosActivos} activos`
-                        : "Ninguno activo"}
+                        ? `${filtrosActivos} active`
+                        : "None active"}
                     </p>
                   </div>
                 </div>
@@ -546,9 +555,9 @@ function Home() {
                     onClick={limpiarFiltros}
                     className="text-xs font-medium px-2 py-1 rounded-md transition-all hover:bg-auto-tertiary flex items-center gap-1"
                     style={{ color: "var(--problem)" }}
-                    title="Limpiar todos los filtros"
+                    title="Clear all filters"
                   >
-                    <XIcon className="w-3 h-3" /> Limpiar
+                    <XIcon className="w-3 h-3" /> Clear
                   </button>
                 )}
               </div>
@@ -557,13 +566,13 @@ function Home() {
                 {/* Búsqueda */}
                 <div>
                   <label className="text-xs font-semibold text-auto-secondary mb-2 block">
-                    Búsqueda
+                    Search
                   </label>
                   <div className="relative">
                     <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-auto-tertiary" />
                     <input
                       type="text"
-                      placeholder="Habitación, nombre..."
+                      placeholder="Room, name..."
                       value={filtros.busqueda}
                       onChange={(e) =>
                         setFiltros((prev) => ({
@@ -584,7 +593,7 @@ function Home() {
                 {/* Filtro por Estado */}
                 <div>
                   <h3 className="text-xs font-semibold text-auto-secondary mb-2">
-                    Estado
+                    Status
                   </h3>
                   <div className="space-y-1.5">
                     <button
@@ -600,7 +609,7 @@ function Home() {
                           : {}
                       }
                     >
-                      <span>Pendientes</span>
+                      <span>Pending</span>
                       <span className="font-bold">
                         {
                           peticiones.filter((p) => p.estado === "pending")
@@ -621,7 +630,7 @@ function Home() {
                           : {}
                       }
                     >
-                      <span>En Progreso</span>
+                      <span>In Progress</span>
                       <span className="font-bold">
                         {
                           peticiones.filter((p) => p.estado === "in-progress")
@@ -642,7 +651,7 @@ function Home() {
                           : {}
                       }
                     >
-                      <span>Completadas</span>
+                      <span>Completed</span>
                       <span className="font-bold">
                         {
                           peticiones.filter((p) => p.estado === "completed")
@@ -663,7 +672,7 @@ function Home() {
                           : {}
                       }
                     >
-                      <span>Canceladas</span>
+                      <span>Cancelled</span>
                       <span className="font-bold">
                         {
                           peticiones.filter((p) => p.estado === "cancelled")
@@ -677,7 +686,7 @@ function Home() {
                 {/* Filtro por Tipo */}
                 <div>
                   <h3 className="text-xs font-semibold text-auto-secondary mb-2">
-                    Tipo de Servicio
+                    Service Type
                   </h3>
                   <div className="grid grid-cols-2 gap-2">
                     <button
@@ -693,7 +702,7 @@ function Home() {
                           : {}
                       }
                     >
-                      <BellIcon className="w-3.5 h-3.5" /> Movilidad
+                      <BellIcon className="w-3.5 h-3.5" /> Mobility
                     </button>
                     <button
                       onClick={() => toggleFiltroTipo("room-service")}
@@ -723,7 +732,7 @@ function Home() {
                           : {}
                       }
                     >
-                      <WarningIcon className="w-3.5 h-3.5" /> Problemas
+                      <WarningIcon className="w-3.5 h-3.5" /> Problems
                     </button>
                     <button
                       onClick={() => toggleFiltroTipo("extra")}
@@ -750,14 +759,14 @@ function Home() {
 
       <ConfirmationModal
         open={showCancelModal}
-        title="Cancelar petición"
+        title="Cancel request"
         message={
           peticionSeleccionadaParaCancelar
-            ? `¿Estás seguro de que deseas cancelar la petición de la habitación ${peticionSeleccionadaParaCancelar.numeroHabitacion}?`
-            : "¿Estás seguro de que deseas cancelar esta petición?"
+            ? `Are you sure you want to cancel the request for room ${peticionSeleccionadaParaCancelar.numeroHabitacion}?`
+            : "Are you sure you want to cancel this request?"
         }
-        confirmLabel="Sí, cancelar"
-        cancelLabel="No, volver"
+        confirmLabel="Yes, cancel"
+        cancelLabel="No, go back"
         variant="danger"
         onConfirm={confirmarCancelacion}
         onCancel={cerrarModalCancelacion}
@@ -818,7 +827,7 @@ function TarjetaPeticion({
 }: PropsTarjetaPeticion) {
   const configTipo = {
     services: {
-      etiqueta: "Movilidad",
+      etiqueta: "Mobility",
       icono: <BellIcon className="w-6 h-6" />,
       color: "var(--services)",
     },
@@ -828,7 +837,7 @@ function TarjetaPeticion({
       color: "var(--room-service)",
     },
     problem: {
-      etiqueta: "Problema",
+      etiqueta: "Problem",
       icono: <WarningIcon className="w-6 h-6" />,
       color: "var(--problem)",
     },
@@ -840,10 +849,10 @@ function TarjetaPeticion({
   };
 
   const configEstado = {
-    pending: { etiqueta: "Pendiente", color: "var(--warning)" },
-    "in-progress": { etiqueta: "En Progreso", color: "var(--hotel-secondary)" },
-    completed: { etiqueta: "Completada", color: "var(--success)" },
-    cancelled: { etiqueta: "Cancelada", color: "#DC2626" },
+    pending: { etiqueta: "Pending", color: "var(--warning)" },
+    "in-progress": { etiqueta: "In Progress", color: "var(--hotel-secondary)" },
+    completed: { etiqueta: "Completed", color: "var(--success)" },
+    cancelled: { etiqueta: "Cancelled", color: "#DC2626" },
   };
 
   const config = configTipo[peticion.tipo];
@@ -854,17 +863,17 @@ function TarjetaPeticion({
       const marcaTiempo = fecha instanceof Date ? fecha : new Date(fecha);
 
       if (isNaN(marcaTiempo.getTime())) {
-        return "Fecha inválida";
+        return "Invalid date";
       }
 
       const diferencia = Date.now() - marcaTiempo.getTime();
       const minutos = Math.floor(diferencia / 60000);
-      if (minutos < 1) return "Ahora mismo";
-      if (minutos < 60) return `Hace ${minutos} min`;
+      if (minutos < 1) return "Just now";
+      if (minutos < 60) return `${minutos} min ago`;
       const horas = Math.floor(minutos / 60);
-      return `Hace ${horas}h`;
+      return `${horas}h ago`;
     } catch (error) {
-      return "Fecha inválida";
+      return "Invalid date";
     }
   };
 
@@ -886,7 +895,7 @@ function TarjetaPeticion({
           </div>
           <div>
             <h3 className="font-bold text-sm text-auto-primary">
-              Habitación {peticion.numeroHabitacion}
+              Room {peticion.numeroHabitacion}
             </h3>
             <p className="text-xs text-auto-secondary">
               {peticion.nombreHuesped}
@@ -916,7 +925,7 @@ function TarjetaPeticion({
           <p className="text-xs text-red-700 dark:text-red-400 flex items-center gap-2">
             <XCircleIcon className="w-4 h-4" />
             <span>
-              Cancelada por: <strong>{peticion.cancelledByName}</strong>
+              Cancelled by: <strong>{peticion.cancelledByName}</strong>
               {peticion.cancelledAt && (
                 <span className="ml-1">
                   (
@@ -940,7 +949,7 @@ function TarjetaPeticion({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="text-xs font-semibold text-yellow-800 dark:text-yellow-400">
-                Calificación del huésped:
+                Guest rating:
               </span>
               <div className="flex items-center gap-0.5">
                 {[1, 2, 3, 4, 5].map((star) => (
@@ -990,7 +999,7 @@ function TarjetaPeticion({
               opacity: 0.7,
             }}
           >
-            Cancelada <XCircleIcon className="w-3 h-3" />
+            Cancelled <XCircleIcon className="w-3 h-3" />
           </div>
         ) : (
           <>
@@ -1004,15 +1013,15 @@ function TarjetaPeticion({
                     backgroundColor: "var(--hotel-secondary)",
                     color: "#fff",
                   }}
-                  title="Comenzar a atender esta petición"
+                  title="Start handling this request"
                 >
-                  Atender <ArrowRepeatIcon className="w-4 h-4" />
+                  Start <ArrowRepeatIcon className="w-4 h-4" />
                 </button>
                 {/* Botón de cancelar */}
                 <button
                   onClick={() => onCancelar(peticion.id)}
                   className="px-3 py-2 rounded-lg text-xs font-semibold transition-all hover:scale-[1.02] active:scale-95 border border-red-500 text-red-500 hover:bg-red-50 flex items-center justify-center gap-1"
-                  title="Cancelar esta petición"
+                  title="Cancel this request"
                 >
                   <XCircleIcon className="w-3.5 h-3.5" />
                 </button>
@@ -1030,9 +1039,9 @@ function TarjetaPeticion({
                     borderColor: "var(--warning)",
                     color: "var(--warning)",
                   }}
-                  title="Regresar a pendiente"
+                  title="Move back to pending"
                 >
-                  <ArrowLeftIcon className="w-3 h-3" /> Pendiente
+                  <ArrowLeftIcon className="w-3 h-3" /> Pending
                 </button>
 
                 {/* Avanzar a Completada */}
@@ -1040,16 +1049,16 @@ function TarjetaPeticion({
                   onClick={() => onActualizarEstado(peticion.id, "completed")}
                   className="flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all hover:scale-[1.02] active:scale-95 shadow-sm flex items-center justify-center gap-1.5"
                   style={{ backgroundColor: "var(--success)", color: "#fff" }}
-                  title="Marcar como completada"
+                  title="Mark as completed"
                 >
-                  Completar <CheckCircleIcon className="w-4 h-4" />
+                  Complete <CheckCircleIcon className="w-4 h-4" />
                 </button>
 
                 {/* Botón de cancelar */}
                 <button
                   onClick={() => onCancelar(peticion.id)}
                   className="px-3 py-2 rounded-lg text-xs font-semibold transition-all hover:scale-[1.02] active:scale-95 border border-red-500 text-red-500 hover:bg-red-50 flex items-center justify-center gap-1"
-                  title="Cancelar esta petición"
+                  title="Cancel this request"
                 >
                   <XCircleIcon className="w-3.5 h-3.5" />
                 </button>
@@ -1067,9 +1076,9 @@ function TarjetaPeticion({
                     borderColor: "var(--hotel-secondary)",
                     color: "var(--hotel-secondary)",
                   }}
-                  title="Regresar a en progreso"
+                  title="Move back to in progress"
                 >
-                  <ArrowLeftIcon className="w-3 h-3" /> Reabrir
+                  <ArrowLeftIcon className="w-3 h-3" /> Reopen
                 </button>
 
                 <div
@@ -1080,7 +1089,7 @@ function TarjetaPeticion({
                     opacity: 0.6,
                   }}
                 >
-                  Finalizada <CheckIcon className="w-3 h-3" />
+                  Finished <CheckIcon className="w-3 h-3" />
                 </div>
               </>
             )}
