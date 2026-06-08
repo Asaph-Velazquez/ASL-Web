@@ -245,8 +245,6 @@ mongod
 
 ### JWT_SECRET en Producción
 
-⚠️ **IMPORTANTE**: Nunca uses la clave de ejemplo en producción.
-
 Genera una clave segura:
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
