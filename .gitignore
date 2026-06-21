@@ -83,3 +83,4 @@ desktop.ini
 .nyc_output/
 coverage/
 *.lcov
+alphabet/
