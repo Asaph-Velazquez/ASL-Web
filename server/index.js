@@ -8,6 +8,7 @@ import cors from 'cors';
 import { config } from 'dotenv';
 import jwt from 'jsonwebtoken';
 import authRoutes from './routes/auth.js';
+import logsRoutes from './routes/logs.js';
 import staysRoutes from './routes/stays.js';
 import staffRoutes from './routes/staff.js';
 import statsRoutes from './routes/stats.js';
@@ -32,6 +33,7 @@ import {
   sanitizeWSMessage,
   WS_INACTIVITY_TIMEOUT
 } from './middleware/security.js';
+import { logOperationalError, logOperationalEvent } from './services/operationalLogs.js';
 
 config();
 
@@ -61,7 +63,12 @@ app.use('/api', generalLimiter);
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/asl-hotel';
 mongoose.connect(MONGODB_URI)
   .then(() => console.log('✅ MongoDB conectado correctamente'))
-  .catch(err => console.error('❌ Error al conectar MongoDB:', err));
+  .catch(err => {
+    console.error('❌ Error al conectar MongoDB:', err);
+    logOperationalError('MONGODB_CONNECTION_FAILED', err, {
+      source: 'server:index',
+    });
+  });
 
 setInterval(() => {
   processStayTransitions()
@@ -72,6 +79,9 @@ setInterval(() => {
     })
     .catch((error) => {
       console.error('❌ Error procesando rotacion de estancias:', error);
+      logOperationalError('STAY_ROTATION_FAILED', error, {
+        source: 'server:index',
+      });
     });
 }, 60 * 1000);
 
@@ -84,6 +94,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/stays', staysRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/stats', statsRoutes);
+app.use('/api/logs', logsRoutes);
 
 // Crear servidor HTTP
 const server = createServer(app);
@@ -114,10 +125,29 @@ wss.on('connection', async (ws) => {
   const meta = socketMeta.get(ws);
   if (meta?.roomNumber) {
     console.log(`🔒 Huesped verificado conectado: ${meta.guestName} (Habitacion ${meta.roomNumber})`);
+    logOperationalEvent('connections', 'WS_GUEST_CONNECTED', {
+      stayId: meta.stayId,
+      roomNumber: meta.roomNumber,
+      guestName: meta.guestName,
+      actor: meta.guestName,
+      actorRole: 'guest',
+      source: 'websocket',
+      message: `Guest connected for room ${meta.roomNumber}`,
+    });
   } else if (meta?.isStaff) {
     console.log('👥 Personal conectado (panel web)');
+    logOperationalEvent('connections', 'WS_STAFF_CONNECTED', {
+      actor: meta.username,
+      actorRole: meta.role || 'staff',
+      source: 'websocket',
+      message: `Staff connected: ${meta.username || 'unknown'}`,
+    });
   } else {
     console.log('✅ Nuevo cliente conectado');
+    logOperationalEvent('connections', 'WS_CLIENT_CONNECTED', {
+      source: 'websocket',
+      message: 'Client connected without stay metadata',
+    });
   }
   clientes.add(ws);
 
@@ -134,6 +164,14 @@ wss.on('connection', async (ws) => {
     }));
   } catch (error) {
     console.error('❌ Error cargando historial de solicitudes:', error.message);
+    logOperationalError('WS_INIT_REQUESTS_FAILED', error, {
+      stayId: meta?.stayId,
+      roomNumber: meta?.roomNumber,
+      guestName: meta?.guestName,
+      actor: meta?.username || meta?.guestName,
+      actorRole: meta?.role || (meta?.isStaff ? 'staff' : 'guest'),
+      source: 'websocket',
+    });
   }
 
   const inactivityTimeout = setTimeout(() => {
@@ -153,6 +191,14 @@ wss.on('connection', async (ws) => {
       const rawData = datos.toString();
       if (rawData.length > 10000) {
         ws.send(JSON.stringify({ error: 'Mensaje demasiado grande' }));
+        logOperationalError('WS_MESSAGE_TOO_LARGE', new Error('Message too large'), {
+          stayId: meta?.stayId,
+          roomNumber: meta?.roomNumber,
+          guestName: meta?.guestName,
+          actor: meta?.username || meta?.guestName,
+          actorRole: meta?.role || (meta?.isStaff ? 'staff' : 'guest'),
+          source: 'websocket',
+        });
         return;
       }
 
@@ -163,6 +209,14 @@ wss.on('connection', async (ws) => {
         case 'UPDATE_CONFIG':
           if (!socketMeta.get(ws)?.isStaff) {
             ws.send(JSON.stringify({ error: 'Unauthorized action' }));
+            logOperationalError('WS_UNAUTHORIZED_CONFIG_UPDATE', new Error('Unauthorized config update'), {
+              stayId: meta?.stayId,
+              roomNumber: meta?.roomNumber,
+              guestName: meta?.guestName,
+              actor: meta?.username || meta?.guestName,
+              actorRole: meta?.role || (meta?.isStaff ? 'staff' : 'guest'),
+              source: 'websocket',
+            });
             break;
           }
           configuracionApp = mensaje.payload;
@@ -182,17 +236,62 @@ wss.on('connection', async (ws) => {
             timestamp: mensaje.payload?.timestamp || new Date().toISOString(),
           };
           await persistNewRequest(verifiedPayload, socketDetails);
+          logOperationalEvent('requests', 'NEW_REQUEST', {
+            stayId: verifiedPayload.stayId,
+            roomNumber: verifiedPayload.roomNumber,
+            guestName: verifiedPayload.guestName,
+            requestId: verifiedPayload.id,
+            actor: socketDetails?.guestName || socketDetails?.username || verifiedPayload.guestName,
+            actorRole: socketDetails?.role || (socketDetails?.isStaff ? 'staff' : 'guest'),
+            source: 'websocket',
+            message: verifiedPayload.message || `New request: ${verifiedPayload.type}`,
+            metadata: {
+              type: verifiedPayload.type,
+              priority: verifiedPayload.priority || 'medium',
+              status: verifiedPayload.status,
+            },
+          });
           difundir({ type: 'NEW_REQUEST', payload: verifiedPayload });
           break;
 
         case 'UPDATE_REQUEST':
           if (!socketMeta.get(ws)?.isStaff) {
             ws.send(JSON.stringify({ error: 'Unauthorized action' }));
+            logOperationalError('WS_UNAUTHORIZED_REQUEST_UPDATE', new Error('Unauthorized request update'), {
+              stayId: meta?.stayId,
+              roomNumber: meta?.roomNumber,
+              guestName: meta?.guestName,
+              requestId: mensaje.payload?.id || mensaje.payload?.requestId,
+              actor: meta?.username || meta?.guestName,
+              actorRole: meta?.role || (meta?.isStaff ? 'staff' : 'guest'),
+              source: 'websocket',
+            });
             break;
           }
-          console.log('🔄 Petición actualizada:', mensaje.payload?.requestId);
-          await persistRequestUpdate(mensaje.payload, socketMeta.get(ws));
-          difundir({ type: 'UPDATE_REQUEST', payload: mensaje.payload });
+          console.log('🔄 Petición actualizada:', mensaje.payload?.requestId || mensaje.payload?.id);
+          const updatedRequest = await persistRequestUpdate(mensaje.payload, socketMeta.get(ws));
+          const updateBroadcastPayload = {
+            id: updatedRequest?.requestId || mensaje.payload?.id || mensaje.payload?.requestId,
+            status: updatedRequest?.status || mensaje.payload?.status,
+            details: updatedRequest?.details || null,
+          };
+          logOperationalEvent('requests', 'UPDATE_REQUEST', {
+            stayId: updatedRequest?.stayId || meta?.stayId,
+            roomNumber: updatedRequest?.roomNumber || meta?.roomNumber,
+            guestName: updatedRequest?.guestName || meta?.guestName,
+            requestId: updatedRequest?.requestId || mensaje.payload?.id || mensaje.payload?.requestId,
+            actor: meta?.username,
+            actorRole: meta?.role || 'staff',
+            source: 'websocket',
+            message: mensaje.payload?.details?.transportResponse
+              ? 'Transport response updated'
+              : `Request updated to ${mensaje.payload?.status || updatedRequest?.status || 'unknown'}`,
+            metadata: {
+              status: updatedRequest?.status || mensaje.payload?.status,
+              transportResponse: updatedRequest?.details?.transportResponse || null,
+            },
+          });
+          difundir({ type: 'UPDATE_REQUEST', payload: updateBroadcastPayload });
           break;
 
         case 'CANCEL_REQUEST':
@@ -211,7 +310,20 @@ wss.on('connection', async (ws) => {
             cancelledAt: new Date().toISOString(),
             status: 'cancelled'
           };
-          await persistRequestCancellation(cancelPayload, metaCancel);
+          const cancelledRequest = await persistRequestCancellation(cancelPayload, metaCancel);
+          logOperationalEvent('requests', 'CANCEL_REQUEST', {
+            stayId: cancelledRequest?.stayId || metaCancel?.stayId,
+            roomNumber: cancelledRequest?.roomNumber || metaCancel?.roomNumber || mensaje.payload?.roomNumber,
+            guestName: cancelledRequest?.guestName || metaCancel?.guestName || mensaje.payload?.guestName,
+            requestId: cancelledRequest?.requestId || cancelPayload.id || cancelPayload.requestId,
+            actor: cancelPayload.cancelledByName,
+            actorRole: cancelPayload.cancelledBy,
+            source: 'websocket',
+            message: 'Request cancelled',
+            metadata: {
+              cancelledAt: cancelPayload.cancelledAt,
+            },
+          });
           difundir({ type: 'CANCEL_REQUEST', payload: cancelPayload });
           break;
 
@@ -221,7 +333,21 @@ wss.on('connection', async (ws) => {
             ...mensaje.payload,
             ratedAt: mensaje.payload.ratedAt || new Date().toISOString()
           };
-          await persistRequestRating(ratePayload, socketMeta.get(ws));
+          const ratedRequest = await persistRequestRating(ratePayload, socketMeta.get(ws));
+          logOperationalEvent('requests', 'RATE_REQUEST', {
+            stayId: ratedRequest?.stayId || meta?.stayId,
+            roomNumber: ratedRequest?.roomNumber || meta?.roomNumber,
+            guestName: ratedRequest?.guestName || meta?.guestName,
+            requestId: ratedRequest?.requestId || ratePayload.id || ratePayload.requestId,
+            actor: meta?.username || meta?.guestName,
+            actorRole: meta?.role || (meta?.isStaff ? 'staff' : 'guest'),
+            source: 'websocket',
+            message: `Request rated with ${ratePayload.rating ?? 'unknown'} stars`,
+            metadata: {
+              rating: ratePayload.rating,
+              ratedAt: ratePayload.ratedAt,
+            },
+          });
           difundir({ type: 'RATE_REQUEST', payload: ratePayload });
           break;
 
@@ -230,6 +356,14 @@ wss.on('connection', async (ws) => {
       }
     } catch (error) {
       console.error('❌ Error al procesar mensaje:', error.message);
+      logOperationalError('WS_MESSAGE_PROCESSING_FAILED', error, {
+        stayId: meta?.stayId,
+        roomNumber: meta?.roomNumber,
+        guestName: meta?.guestName,
+        actor: meta?.username || meta?.guestName,
+        actorRole: meta?.role || (meta?.isStaff ? 'staff' : 'guest'),
+        source: 'websocket',
+      });
       ws.send(JSON.stringify({ error: 'Invalid message format' }));
     }
   });
@@ -237,12 +371,29 @@ wss.on('connection', async (ws) => {
   ws.on('close', () => {
     clearTimeout(inactivityTimeout);
     console.log('🔌 Cliente desconectado');
+    logOperationalEvent('connections', 'WS_CLIENT_DISCONNECTED', {
+      stayId: meta?.stayId,
+      roomNumber: meta?.roomNumber,
+      guestName: meta?.guestName,
+      actor: meta?.username || meta?.guestName,
+      actorRole: meta?.role || (meta?.isStaff ? 'staff' : 'guest'),
+      source: 'websocket',
+      message: 'Client disconnected',
+    });
     clientes.delete(ws);
   });
 
   ws.on('error', (error) => {
     clearTimeout(inactivityTimeout);
     console.error('❌ Error en WebSocket:', error.message);
+    logOperationalError('WS_SOCKET_ERROR', error, {
+      stayId: meta?.stayId,
+      roomNumber: meta?.roomNumber,
+      guestName: meta?.guestName,
+      actor: meta?.username || meta?.guestName,
+      actorRole: meta?.role || (meta?.isStaff ? 'staff' : 'guest'),
+      source: 'websocket',
+    });
   });
 });
 
@@ -259,6 +410,9 @@ server.on('upgrade', async (request, socket, head) => {
       socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
       socket.destroy();
       console.log('❌ Conexion WebSocket rechazada: no se proporciono token');
+      logOperationalError('WS_UPGRADE_MISSING_TOKEN', new Error('Missing token'), {
+        source: 'websocket-upgrade',
+      });
       return;
     }
 
@@ -270,6 +424,9 @@ server.on('upgrade', async (request, socket, head) => {
       socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
       socket.destroy();
       console.log('❌ Conexion WebSocket rechazada: token invalido');
+      logOperationalError('WS_UPGRADE_INVALID_TOKEN', err, {
+        source: 'websocket-upgrade',
+      });
       return;
     }
 
@@ -296,6 +453,12 @@ server.on('upgrade', async (request, socket, head) => {
       socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
       socket.destroy();
       console.log('❌ Conexion WebSocket rechazada: estancia no encontrada');
+      logOperationalError('WS_UPGRADE_STAY_NOT_FOUND', new Error('Stay not found'), {
+        stayId,
+        roomNumber,
+        guestName,
+        source: 'websocket-upgrade',
+      });
       return;
     }
 
@@ -303,6 +466,12 @@ server.on('upgrade', async (request, socket, head) => {
       socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
       socket.destroy();
       console.log('❌ Conexion WebSocket rechazada: estancia inactiva');
+      logOperationalError('WS_UPGRADE_INACTIVE_STAY', new Error('Inactive stay'), {
+        stayId: stay.stayId,
+        roomNumber: stay.roomNumber,
+        guestName: stay.guestName || guestName,
+        source: 'websocket-upgrade',
+      });
       return;
     }
 
@@ -311,6 +480,12 @@ server.on('upgrade', async (request, socket, head) => {
       socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
       socket.destroy();
       console.log('❌ Conexion WebSocket rechazada: estancia vencida');
+      logOperationalError('WS_UPGRADE_EXPIRED_STAY', new Error('Expired stay'), {
+        stayId: stay.stayId,
+        roomNumber: stay.roomNumber,
+        guestName: stay.guestName || guestName,
+        source: 'websocket-upgrade',
+      });
       return;
     }
 
@@ -326,6 +501,9 @@ server.on('upgrade', async (request, socket, head) => {
     });
   } catch (error) {
     console.error('❌ Error during WebSocket upgrade:', error);
+    logOperationalError('WS_UPGRADE_FAILED', error, {
+      source: 'websocket-upgrade',
+    });
     socket.write('HTTP/1.1 500 Internal Server Error\r\n\r\n');
     socket.destroy();
   }
@@ -348,6 +526,9 @@ server.on('error', (err) => {
     startServer(server, altPort, false, `http://localhost:${altPort}`);
   } else {
     console.error('❌ Error de servidor:', err);
+    logOperationalError('HTTP_SERVER_ERROR', err, {
+      source: 'server:index',
+    });
     process.exit(1);
   }
 });
@@ -362,6 +543,9 @@ if (USE_HTTPS && existsSync('cert.pem') && existsSync('key.pem')) {
 
   httpsServer.on('error', (err) => {
     console.error('❌ Error en servidor HTTPS:', err);
+    logOperationalError('HTTPS_SERVER_ERROR', err, {
+      source: 'server:https',
+    });
   });
 
   httpsServer.on('upgrade', (request, socket, head) => {

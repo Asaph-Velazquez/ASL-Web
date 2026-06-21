@@ -4,6 +4,7 @@ import { Stay } from '../models/index.js';
 import { verifyToken } from '../middleware/auth.js';
 import { processStayTransitions } from '../services/stayLifecycle.js';
 import { registerLimiter, validateBody, schemas } from '../middleware/security.js';
+import { logOperationalError } from '../services/operationalLogs.js';
 
 const router = express.Router();
 
@@ -44,6 +45,14 @@ router.post('/validate', verifyToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Error validating token:', error);
+    logOperationalError('AUTH_VALIDATE_FAILED', error, {
+      stayId: req.user?.stayId,
+      roomNumber: req.user?.roomNumber,
+      guestName: req.user?.guestName,
+      actor: req.user?.guestName,
+      actorRole: 'guest',
+      source: 'api:auth',
+    });
     return res.status(500).json({ error: 'Token validation failed' });
   }
 });
@@ -96,6 +105,14 @@ router.post('/register', registerLimiter, verifyToken, validateBody(schemas.gues
     });
   } catch (error) {
     console.error('Error registering guest:', error);
+    logOperationalError('AUTH_REGISTER_GUEST_FAILED', error, {
+      stayId: req.user?.stayId,
+      roomNumber: req.user?.roomNumber,
+      guestName: req.body?.guestName || req.user?.guestName,
+      actor: req.body?.guestName || req.user?.guestName,
+      actorRole: 'guest',
+      source: 'api:auth',
+    });
     return res.status(500).json({ error: 'Guest registration failed' });
   }
 });

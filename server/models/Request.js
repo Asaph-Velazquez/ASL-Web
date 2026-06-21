@@ -120,6 +120,10 @@ const requestSchema = new mongoose.Schema(
       type: [requestHistorySchema],
       default: [],
     },
+    details: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
   },
   {
     timestamps: true,

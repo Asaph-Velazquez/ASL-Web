@@ -8,6 +8,8 @@ function isValidDateString(value) {
   return !Number.isNaN(new Date(value).getTime());
 }
 
+const guestListSchema = z.array(z.string().trim().min(1).max(100)).max(10);
+
 // =============================================================
 // RATE LIMITING
 // =============================================================
@@ -201,7 +203,8 @@ export const schemas = {
   // Registro de stay
   createStay: z.object({
     roomNumber: z.string().min(1).max(10).regex(/^[A-Za-z0-9-]+$/),
-    guestName: z.string().max(100).optional(),
+    guestName: z.string().max(100).nullable().optional(),
+    additionalGuests: guestListSchema.optional(),
     checkIn: z.string().min(1).max(40).refine(isValidDateString, 'Invalid checkIn format'),
     checkOut: z.string().min(1).max(40).refine(isValidDateString, 'Invalid checkOut format')
   }),
@@ -219,7 +222,8 @@ export const schemas = {
   // Actualizar stay
   updateStay: z.object({
     roomNumber: z.string().min(1).max(10).optional(),
-    guestName: z.string().max(100).optional(),
+    guestName: z.string().max(100).nullable().optional(),
+    additionalGuests: guestListSchema.optional(),
     active: z.boolean().optional()
   }),
 

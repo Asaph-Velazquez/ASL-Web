@@ -16,6 +16,10 @@ const staySchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  additionalGuests: {
+    type: [String],
+    default: []
+  },
   checkIn: {
     type: Date,
     required: true

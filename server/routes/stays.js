@@ -4,6 +4,7 @@ import { generateQRDataURL } from '../utils/qr.js';
 import { buildStayToken, hasRoomConflict, processStayTransitions } from '../services/stayLifecycle.js';
 import { verifyStaffToken } from '../middleware/auth.js';
 import { validateBody, schemas } from '../middleware/security.js';
+import { logOperationalError } from '../services/operationalLogs.js';
 
 const router = express.Router();
 router.use(verifyStaffToken);
@@ -13,6 +14,16 @@ function toDate(value) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+function normalizeAdditionalGuests(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((guest) => (typeof guest === 'string' ? guest.trim() : ''))
+    .filter(Boolean);
+}
+
 /**
  * POST /api/stays
  * Crea un nuevo documento Stay
@@ -20,7 +31,7 @@ function toDate(value) {
  */
 router.post('/', validateBody(schemas.createStay), async (req, res) => {
   try {
-    const { roomNumber, checkIn, checkOut, guestName } = req.body;
+    const { roomNumber, checkIn, checkOut, guestName, additionalGuests } = req.body;
 
     // Validar entrada
     if (!roomNumber || !checkIn || !checkOut) {
@@ -60,6 +71,7 @@ router.post('/', validateBody(schemas.createStay), async (req, res) => {
     const stay = new Stay({
       roomNumber,
       guestName: typeof guestName === 'string' ? guestName.trim() || null : null,
+      additionalGuests: normalizeAdditionalGuests(additionalGuests),
       checkIn: checkInDate,
       checkOut: checkOutDate,
       active: startsNow,
@@ -77,6 +89,7 @@ router.post('/', validateBody(schemas.createStay), async (req, res) => {
       qrToken: stay.qrToken,
       roomNumber: stay.roomNumber,
       guestName: stay.guestName,
+      additionalGuests: stay.additionalGuests,
       checkIn: stay.checkIn,
       checkOut: stay.checkOut,
       active: stay.active,
@@ -84,6 +97,13 @@ router.post('/', validateBody(schemas.createStay), async (req, res) => {
     });
   } catch (error) {
     console.error('Error creating stay:', error);
+    logOperationalError('STAY_CREATE_FAILED', error, {
+      roomNumber: req.body?.roomNumber,
+      guestName: req.body?.guestName,
+      actor: req.user?.username,
+      actorRole: req.user?.role,
+      source: 'api:stays',
+    });
     return res.status(500).json({ error: 'Unable to create the reservation' });
   }
 });
@@ -99,7 +119,69 @@ router.get('/', async (req, res) => {
     return res.json(stays);
   } catch (error) {
     console.error('Error fetching stays:', error);
+    logOperationalError('STAY_LIST_FAILED', error, {
+      actor: req.user?.username,
+      actorRole: req.user?.role,
+      source: 'api:stays',
+    });
     return res.status(500).json({ error: 'Unable to get reservations' });
+  }
+});
+
+router.patch('/:stayId', validateBody(schemas.updateStay), async (req, res) => {
+  try {
+    const { stayId } = req.params;
+    const { roomNumber, guestName, additionalGuests } = req.body;
+
+    const stay = await Stay.findOne({ stayId });
+    if (!stay) {
+      return res.status(404).json({ error: 'Stay not found' });
+    }
+
+    const nextRoomNumber = typeof roomNumber === 'string' ? roomNumber.trim() : stay.roomNumber;
+    const nextGuestName = typeof guestName === 'string' ? guestName.trim() || null : stay.guestName;
+    const nextAdditionalGuests = additionalGuests !== undefined
+      ? normalizeAdditionalGuests(additionalGuests)
+      : stay.additionalGuests;
+
+    if (nextRoomNumber !== stay.roomNumber) {
+      const hasConflict = await hasRoomConflict({
+        roomNumber: nextRoomNumber,
+        checkIn: stay.checkIn,
+        checkOut: stay.checkOut,
+        excludeStayId: stay.stayId,
+      });
+
+      if (hasConflict) {
+        return res.status(409).json({
+          error: 'There is a schedule conflict for that room',
+        });
+      }
+    }
+
+    stay.roomNumber = nextRoomNumber;
+    stay.guestName = nextGuestName;
+    stay.additionalGuests = nextAdditionalGuests;
+
+    if (stay.active && stay.status === 'active') {
+      stay.qrToken = buildStayToken(stay);
+    }
+
+    await stay.save();
+
+    return res.json({
+      updated: true,
+      stay,
+    });
+  } catch (error) {
+    console.error('Error updating stay:', error);
+    logOperationalError('STAY_UPDATE_FAILED', error, {
+      stayId: req.params?.stayId,
+      actor: req.user?.username,
+      actorRole: req.user?.role,
+      source: 'api:stays',
+    });
+    return res.status(500).json({ error: 'Unable to update the reservation' });
   }
 });
 
@@ -107,12 +189,17 @@ router.get('/', async (req, res) => {
  * POST /api/stays/process-transitions
  * Ejecuta manualmente la rotacion de reservaciones a estancias activas
  */
-router.post('/process-transitions', async (_req, res) => {
+router.post('/process-transitions', async (req, res) => {
   try {
     const result = await processStayTransitions();
     return res.json({ ok: true, ...result });
   } catch (error) {
     console.error('Error processing transitions:', error);
+    logOperationalError('STAY_PROCESS_TRANSITIONS_FAILED', error, {
+      actor: req.user?.username,
+      actorRole: req.user?.role,
+      source: 'api:stays',
+    });
     return res.status(500).json({ error: 'Unable to process reservation rotation' });
   }
 });
@@ -148,6 +235,12 @@ router.get('/:stayId/qr', async (req, res) => {
     return res.json({ qrCode: qrDataURL, stayId });
   } catch (error) {
     console.error('Error generating QR code:', error);
+    logOperationalError('STAY_QR_FAILED', error, {
+      stayId: req.params?.stayId,
+      actor: req.user?.username,
+      actorRole: req.user?.role,
+      source: 'api:stays',
+    });
     return res.status(500).json({ error: 'Failed to generate QR code' });
   }
 });
@@ -173,6 +266,12 @@ router.patch('/:stayId/end', async (req, res) => {
     return res.json({ ended: true, stay });
   } catch (error) {
     console.error('Error ending stay:', error);
+    logOperationalError('STAY_END_FAILED', error, {
+      stayId: req.params?.stayId,
+      actor: req.user?.username,
+      actorRole: req.user?.role,
+      source: 'api:stays',
+    });
     return res.status(500).json({ error: 'Failed to end stay' });
   }
 });
@@ -230,6 +329,12 @@ router.patch('/:stayId/extend', validateBody(schemas.extendStay), async (req, re
     });
   } catch (error) {
     console.error('Error extending stay:', error);
+    logOperationalError('STAY_EXTEND_FAILED', error, {
+      stayId: req.params?.stayId,
+      actor: req.user?.username,
+      actorRole: req.user?.role,
+      source: 'api:stays',
+    });
     return res.status(500).json({ error: 'Unable to extend the reservation' });
   }
 });
@@ -268,6 +373,12 @@ router.patch('/:stayId/cancel', async (req, res) => {
     });
   } catch (error) {
     console.error('Error cancelling stay:', error);
+    logOperationalError('STAY_CANCEL_FAILED', error, {
+      stayId: req.params?.stayId,
+      actor: req.user?.username,
+      actorRole: req.user?.role,
+      source: 'api:stays',
+    });
     return res.status(500).json({ error: 'Unable to cancel the reservation' });
   }
 });
@@ -289,6 +400,12 @@ router.delete('/:stayId', async (req, res) => {
     return res.json({ deleted: true, stayId });
   } catch (error) {
     console.error('Error deleting stay:', error);
+    logOperationalError('STAY_DELETE_FAILED', error, {
+      stayId: req.params?.stayId,
+      actor: req.user?.username,
+      actorRole: req.user?.role,
+      source: 'api:stays',
+    });
     return res.status(500).json({ error: 'Failed to delete stay' });
   }
 });

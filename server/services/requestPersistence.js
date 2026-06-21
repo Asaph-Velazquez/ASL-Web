@@ -17,6 +17,33 @@ function buildHistoryEntry({ eventType, status, changedBy, actorName, note, rati
   };
 }
 
+function isPlainObject(value) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function mergeRequestDetails(existingDetails, incomingDetails) {
+  if (!isPlainObject(existingDetails) && !isPlainObject(incomingDetails)) {
+    return incomingDetails ?? existingDetails ?? null;
+  }
+
+  const base = isPlainObject(existingDetails) ? existingDetails : {};
+  const incoming = isPlainObject(incomingDetails) ? incomingDetails : {};
+
+  const merged = {
+    ...base,
+    ...incoming,
+  };
+
+  if (isPlainObject(base.transportResponse) || isPlainObject(incoming.transportResponse)) {
+    merged.transportResponse = {
+      ...(isPlainObject(base.transportResponse) ? base.transportResponse : {}),
+      ...(isPlainObject(incoming.transportResponse) ? incoming.transportResponse : {}),
+    };
+  }
+
+  return Object.keys(merged).length > 0 ? merged : null;
+}
+
 export async function persistNewRequest(payload, meta = {}) {
   const requestId = String(payload?.id || '').trim();
   if (!requestId) {
@@ -35,6 +62,7 @@ export async function persistNewRequest(payload, meta = {}) {
     priority: payload.priority || 'medium',
     status: payload.status || 'pending',
     timestamp: baseTimestamp,
+    details: payload.details || null,
   };
 
   return Request.findOneAndUpdate(
@@ -52,6 +80,7 @@ export async function persistNewRequest(payload, meta = {}) {
         priority: document.priority,
         status: document.status,
         timestamp: document.timestamp,
+        details: document.details,
       },
       $push: {
         history: buildHistoryEntry({
@@ -78,25 +107,43 @@ export async function persistRequestUpdate(payload, meta = {}) {
     throw new Error('UPDATE_REQUEST missing payload.id');
   }
 
-  return Request.findOneAndUpdate(
-    { requestId },
-    {
-      $set: {
-        status: payload.status,
-      },
-      $push: {
-        history: buildHistoryEntry({
-          eventType: 'UPDATE_REQUEST',
-          status: payload.status,
-          changedBy: meta.isStaff ? 'staff' : 'guest',
-          actorName: meta.username || meta.guestName || null,
-          note: `Status changed to ${payload.status}`,
-          timestamp: new Date(),
-        }),
-      },
-    },
-    { new: true }
-  ).lean();
+  const request = await Request.findOne({ requestId });
+  if (!request) {
+    throw new Error(`Request not found for UPDATE_REQUEST: ${requestId}`);
+  }
+
+  const nextStatus = typeof payload.status === 'string' ? payload.status : request.status;
+  const mergedDetails = mergeRequestDetails(request.details, payload.details);
+
+  if (typeof payload.status === 'string') {
+    request.status = payload.status;
+  }
+
+  if (payload.details !== undefined) {
+    request.details = mergedDetails;
+  }
+
+  const note =
+    payload.note ||
+    (payload.details?.transportResponse
+      ? (payload.details.transportResponse.transportCost
+          ? 'Transport response updated with cost'
+          : 'Transport response updated')
+      : `Status changed to ${nextStatus}`);
+
+  request.history.push(
+    buildHistoryEntry({
+      eventType: 'UPDATE_REQUEST',
+      status: nextStatus,
+      changedBy: meta.isStaff ? 'staff' : 'guest',
+      actorName: meta.username || meta.guestName || null,
+      note,
+      timestamp: new Date(),
+    })
+  );
+
+  await request.save();
+  return request.toObject();
 }
 
 export async function persistRequestCancellation(payload, meta = {}) {
