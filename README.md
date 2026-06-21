@@ -147,29 +147,38 @@ npm run preview
 ## 📁 Estructura del Proyecto
 
 ```
-src/
-├── components/      # Componentes reutilizables
-│   ├── Home.tsx
-│   └── modals/      # Componentes de modales
-├── hooks/           # Custom hooks
-│   └── useWebSocket.ts
-├── assets/          # Recursos estáticos
-├── App.tsx          # Componente principal
-├── main.tsx         # Punto de entrada
-└── index.css        # Estilos globales
-
-server/              # Servidor WebSocket + API
-├── index.js         # Servidor principal
-├── models/          # Esquemas de base de datos
-├── routes/          # Rutas API
-├── services/        # Lógica de negocio
-├── middleware/      # Middleware Express
-├── .env.example     # Variables de entorno (ejemplo)
-├── .env             # Variables de entorno (local - no commitear)
-├── package.json
-└── README.md
-
-public/              # Archivos públicos estáticos
+ASL-Web/
+├── src/                         # Aplicacion React + Vite
+│   ├── components/              # Vistas y componentes principales
+│   │   ├── Home.tsx             # Dashboard de peticiones en tiempo real
+│   │   ├── Login.tsx            # Inicio de sesion del personal
+│   │   ├── Register.tsx         # Registro de usuarios autorizados
+│   │   ├── StaffManagement.tsx  # Gestion de personal
+│   │   ├── Statistics.tsx       # Estadisticas de solicitudes/calificaciones
+│   │   ├── StayManagement.tsx   # Gestion de estancias y codigos QR
+│   │   └── modals/              # Modales reutilizables
+│   ├── hooks/
+│   │   └── useWebSocket.ts      # Conexion WebSocket del panel
+│   ├── App.tsx                  # Rutas principales
+│   ├── main.tsx                 # Punto de entrada
+│   └── index.css                # Estilos globales
+├── server/                      # API HTTP + WebSocket + MongoDB
+│   ├── index.js                 # Servidor Express y WebSocket
+│   ├── middleware/              # Autenticacion, seguridad, CORS y rate limits
+│   ├── models/                  # Modelos Mongoose
+│   ├── routes/                  # Rutas de auth, estancias, staff y stats
+│   ├── services/                # Persistencia y ciclo de vida de estancias
+│   ├── scripts/                 # Scripts administrativos
+│   ├── utils/                   # Utilidades como generacion QR
+│   ├── Dockerfile
+│   ├── compose.yaml
+│   ├── .env.example
+│   └── package.json
+├── utilities/images/            # Recursos graficos del panel
+├── package.json                 # Scripts y dependencias del frontend
+├── vite.config.ts
+├── tsconfig.json
+└── eslint.config.js
 ```
 
 ## 🧪 Scripts Disponibles
@@ -202,7 +211,7 @@ Este panel web se comunica con:
 ┌─────────────────┐                    ┌──────────────────┐                    ┌─────────────────┐
 │   APP MÓVIL     │                    │  SERVIDOR WS     │                    │   PANEL WEB     │
 │  (React Native) │ ◄─────────────────►│  (Node.js + ws)  │◄──────────────────►│  (React + Vite) │
-│                 │   WebSocket        │   Port: 8080     │   WebSocket        │                 │
+│                 │   WebSocket        │   Port: 3001     │   WebSocket        │                 │
 └─────────────────┘                    └──────────────────┘                    └─────────────────┘
 ```
 
@@ -236,8 +245,6 @@ mongod
 
 ### JWT_SECRET en Producción
 
-⚠️ **IMPORTANTE**: Nunca uses la clave de ejemplo en producción.
-
 Genera una clave segura:
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
@@ -255,4 +262,3 @@ El proyecto utiliza:
 - **MongoDB + Mongoose** para persistencia de datos
 - **JWT** para autenticación segura
 - **ESLint** para mantener calidad de código
-
