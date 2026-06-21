@@ -14,6 +14,7 @@ import {
   BsFilter,
   BsHourglassSplit,
   BsInbox,
+  BsJournalText,
   BsPersonBadge,
   BsQrCode,
   BsSearch,
@@ -27,9 +28,11 @@ import LocalTaxiRoundedIcon from "@mui/icons-material/LocalTaxiRounded";
 import ReportProblemRoundedIcon from "@mui/icons-material/ReportProblemRounded";
 import RestaurantRoundedIcon from "@mui/icons-material/RestaurantRounded";
 import ConfirmationModal from "./modals/ConfirmationModal";
+import TransportResponseModal from "./modals/TransportResponseModal";
+import type { TransportResponseFormValue } from "./modals/TransportResponseModal";
 
 // Componentes de iconos Bootstrap
-const HotelIcon = () => <BsBuildingsFill className="w-10 h-10" />;
+const HotelIcon = () => <BsBuildingsFill className="w-10 h-10 text-white" />;
 const InboxIcon = ({ className = "w-6 h-6" }) => <BsInbox className={className} />;
 const BellIcon = ({ className = "w-5 h-5" }) => <LocalTaxiRoundedIcon className={className} />;
 const FoodIcon = ({ className = "w-5 h-5" }) => <RestaurantRoundedIcon className={className} />;
@@ -50,6 +53,7 @@ const LogoutIcon = ({ className = "w-4 h-4" }) => <BsBoxArrowRight className={cl
 const AdminIcon = ({ className = "w-4 h-4" }) => <BsPersonBadge className={className} />;
 const QrCodeIcon = ({ className = "w-4 h-4" }) => <BsQrCode className={className} />;
 const StatsIcon = ({ className = "w-4 h-4" }) => <BsBarChartLine className={className} />;
+const LogsIcon = ({ className = "w-4 h-4" }) => <BsJournalText className={className} />;
 
 // Tipos de datos
 interface Peticion {
@@ -66,6 +70,7 @@ interface Peticion {
   cancelledAt?: string;
   rating?: number;
   ratedAt?: string;
+  details?: any;
 }
 
 interface Filtros {
@@ -88,6 +93,45 @@ interface PersistedRequest {
   cancelledAt?: string;
   rating?: number;
   ratedAt?: string;
+  details?: any;
+}
+
+interface TransportResponse {
+  vehiclePlate: string;
+  vehicleModel: string;
+  transportCost?: string;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
+type TransportKind = "taxi" | "valet" | null;
+
+function isObjectRecord(value: unknown): value is Record<string, any> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function inferTransportKind(details: unknown, mensaje?: string): TransportKind {
+  if (isObjectRecord(details) && (details.serviceType === "taxi" || details.serviceType === "valet")) {
+    return details.serviceType;
+  }
+
+  const normalizedMessage = (mensaje || "").toLowerCase();
+  if (/(taxi|ride-hailing|uber|didi|cab)/.test(normalizedMessage)) {
+    return "taxi";
+  }
+  if (/(valet|parking|parkink|estacionamiento)/.test(normalizedMessage)) {
+    return "valet";
+  }
+
+  return null;
+}
+
+function getTransportResponse(details: unknown): TransportResponse | null {
+  if (!isObjectRecord(details) || !isObjectRecord(details.transportResponse)) {
+    return null;
+  }
+
+  return details.transportResponse as TransportResponse;
 }
 
 const normalizarTipoPeticion = (
@@ -133,6 +177,9 @@ function Home() {
   const [peticionIdToCancel, setPeticionIdToCancel] = useState<string | null>(
     null,
   );
+  const [showTransportModal, setShowTransportModal] = useState(false);
+  const [transportRequestId, setTransportRequestId] = useState<string | null>(null);
+  const [isTransportSaving, setIsTransportSaving] = useState(false);
 
   // Manejadores de filtros
   const toggleFiltroEstado = (estado: string) => {
@@ -264,6 +311,75 @@ function Home() {
     setPeticionIdToCancel(null);
   };
 
+  const peticionSeleccionadaParaTransporte = peticiones.find(
+    (p) => p.id === transportRequestId,
+  );
+
+  const abrirModalTransporte = (peticion: Peticion) => {
+    setTransportRequestId(peticion.id);
+    setShowTransportModal(true);
+  };
+
+  const cerrarModalTransporte = () => {
+    setShowTransportModal(false);
+    setTransportRequestId(null);
+    setIsTransportSaving(false);
+  };
+
+  const guardarRespuestaTransporte = async (value: TransportResponseFormValue) => {
+    if (!peticionSeleccionadaParaTransporte) {
+      return;
+    }
+
+    const transportKind = inferTransportKind(
+      peticionSeleccionadaParaTransporte.details,
+      peticionSeleccionadaParaTransporte.mensaje,
+    );
+
+    if (!transportKind) {
+      return;
+    }
+
+    setIsTransportSaving(true);
+
+    const updatedAt = new Date().toISOString();
+    const updatedBy = localStorage.getItem("staff_username") || "Staff";
+    const nextTransportResponse: TransportResponse = {
+      vehiclePlate: value.vehiclePlate,
+      vehicleModel: value.vehicleModel,
+      updatedAt,
+      updatedBy,
+      ...(transportKind === "taxi" ? { transportCost: value.transportCost } : {}),
+    };
+
+    const nextDetails = {
+      ...(isObjectRecord(peticionSeleccionadaParaTransporte.details) ? peticionSeleccionadaParaTransporte.details : {}),
+      serviceType: transportKind,
+      transportResponse: nextTransportResponse,
+    };
+
+    enviarMensaje({
+      type: "UPDATE_REQUEST",
+      payload: {
+        id: peticionSeleccionadaParaTransporte.id,
+        details: nextDetails,
+        note: transportKind === "taxi"
+          ? "Transport response updated with cost"
+          : "Transport response updated",
+      },
+    });
+
+    setPeticiones((prev) =>
+      prev.map((pet) =>
+        pet.id === peticionSeleccionadaParaTransporte.id
+          ? { ...pet, details: nextDetails }
+          : pet,
+      ),
+    );
+
+    cerrarModalTransporte();
+  };
+
   // Escuchar mensajes de WebSocket
   useEffect(() => {
     if (ultimoMensaje) {
@@ -288,6 +404,7 @@ function Home() {
                 cancelledAt: request.cancelledAt,
                 rating: request.rating,
                 ratedAt: request.ratedAt,
+                details: request.details,
               })),
             );
             break;
@@ -302,16 +419,20 @@ function Home() {
               prioridad: payload.priority,
               estado: payload.status,
               fecha: new Date(payload.timestamp),
+              details: payload.details,
             };
             setPeticiones((prev) => [nuevaPeticion, ...prev]);
             break;
           case "UPDATE_REQUEST":
-            // Actualizar solo el estado de la petición
             const update = ultimoMensaje.payload;
             setPeticiones((prev) =>
               prev.map((r) =>
                 r.id === update.id
-                  ? { ...r, estado: update.status || update.estado }
+                  ? {
+                      ...r,
+                      estado: update.status || update.estado || r.estado,
+                      details: update.details ?? r.details,
+                    }
                   : r,
               ),
             );
@@ -431,6 +552,17 @@ function Home() {
                 <StatsIcon className="w-3.5 h-3.5" />
                 Statistics
               </button>
+              {userRole === "admin" && (
+                <button
+                  onClick={() => navigate("/logs")}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:scale-105 flex items-center gap-1.5 text-white"
+                  style={{ backgroundColor: "#334155" }}
+                  title="View operational logs by stay"
+                >
+                  <LogsIcon className="w-3.5 h-3.5" />
+                  Logs
+                </button>
+              )}
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-auto-tertiary/50 border border-auto">
                 <div
                   className={`w-2 h-2 rounded-full ${estaConectado ? "bg-green-500 animate-pulse" : "bg-red-500"}`}
@@ -522,6 +654,7 @@ function Home() {
                       peticion={peticion}
                       onActualizarEstado={manejarActualizarEstado}
                       onCancelar={manejarCancelarPeticion}
+                      onEditarTransporte={abrirModalTransporte}
                     />
                   ))
                 )}
@@ -771,6 +904,19 @@ function Home() {
         onConfirm={confirmarCancelacion}
         onCancel={cerrarModalCancelacion}
       />
+      <TransportResponseModal
+        open={showTransportModal}
+        isTaxi={
+          inferTransportKind(
+            peticionSeleccionadaParaTransporte?.details,
+            peticionSeleccionadaParaTransporte?.mensaje,
+          ) === "taxi"
+        }
+        loading={isTransportSaving}
+        initialValue={getTransportResponse(peticionSeleccionadaParaTransporte?.details)}
+        onClose={cerrarModalTransporte}
+        onSave={guardarRespuestaTransporte}
+      />
     </div>
   );
 }
@@ -818,13 +964,26 @@ interface PropsTarjetaPeticion {
     estado: "pending" | "in-progress" | "completed",
   ) => void;
   onCancelar: (id: string) => void;
+  onEditarTransporte: (peticion: Peticion) => void;
 }
 
 function TarjetaPeticion({
   peticion,
   onActualizarEstado,
   onCancelar,
+  onEditarTransporte,
 }: PropsTarjetaPeticion) {
+  const transportKind = inferTransportKind(peticion.details, peticion.mensaje);
+  const isTaxi = transportKind === "taxi";
+  const isTransportRequest = transportKind === "taxi" || transportKind === "valet";
+  const taxiDetails = isTaxi && isObjectRecord(peticion.details) ? peticion.details : null;
+  const transportResponse = getTransportResponse(peticion.details);
+  const taxiCategoryLabels: Record<string, string> = {
+    tourist: "Tourist destinations",
+    hospitals: "Nearby hospitals",
+    "airports-buses": "Airports and bus stations",
+  };
+
   const configTipo = {
     services: {
       etiqueta: "Mobility",
@@ -919,6 +1078,75 @@ function TarjetaPeticion({
         </p>
       </div>
 
+      {taxiDetails && (
+        <div className="bg-auto-tertiary/50 rounded-lg p-3 mb-3 border border-auto">
+          <div className="grid grid-cols-2 gap-2 text-xs text-auto-secondary">
+            <span>
+              <strong>Destination:</strong> {taxiDetails.destinationLabel}
+            </span>
+            <span>
+              <strong>Category:</strong> {taxiCategoryLabels[taxiDetails.destinationCategory] || taxiDetails.destinationCategory}
+            </span>
+            <span>
+              <strong>Time:</strong>{" "}
+              {taxiDetails.timeMode === "now"
+                ? "NOW"
+                : new Date(taxiDetails.scheduledAt).toLocaleTimeString("en-US", {
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
+            </span>
+            <span>
+              <strong>People:</strong> {taxiDetails.passengerCount}
+            </span>
+            <span>
+              <strong>Luggage:</strong> {taxiDetails.hasLuggage ? "YES" : "NO"}
+            </span>
+            <span>
+              <strong>Mode:</strong> {taxiDetails.sourceMode}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {transportResponse && isTransportRequest && (
+        <div className="bg-green-50/70 dark:bg-green-900/10 rounded-lg p-3 mb-3 border border-green-200 dark:border-green-800">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-green-700 dark:text-green-400">
+              Transport response
+            </span>
+            {transportResponse.updatedAt && (
+              <span className="text-[11px] text-green-700/80 dark:text-green-400/80">
+                {new Date(transportResponse.updatedAt).toLocaleString("es-ES", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </span>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-xs text-auto-secondary">
+            <span>
+              <strong>Plates:</strong> {transportResponse.vehiclePlate}
+            </span>
+            <span>
+              <strong>Model:</strong> {transportResponse.vehicleModel}
+            </span>
+            {isTaxi && transportResponse.transportCost && (
+              <span>
+                <strong>Cost:</strong> {transportResponse.transportCost}
+              </span>
+            )}
+            {transportResponse.updatedBy && (
+              <span>
+                <strong>Updated by:</strong> {transportResponse.updatedBy}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Información de cancelación */}
       {peticion.estado === "cancelled" && peticion.cancelledByName && (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 mb-3">
@@ -987,6 +1215,17 @@ function TarjetaPeticion({
           {estado.etiqueta}
         </span>
       </div>
+
+      {isTransportRequest && peticion.estado !== "cancelled" && (
+        <button
+          onClick={() => onEditarTransporte(peticion)}
+          className="w-full mb-3 px-3 py-2 rounded-lg text-xs font-semibold transition-all hover:scale-[1.01] active:scale-95 border border-green-600 text-green-700 hover:bg-green-50 flex items-center justify-center gap-2"
+          title="Capture or update transport data"
+        >
+          {transportResponse ? "Edit transport details" : "Add transport details"}
+          <CheckCircleIcon className="w-4 h-4" />
+        </button>
+      )}
 
       {/* Botones de actualización de estado - Flujo secuencial */}
       <div className="flex gap-2">

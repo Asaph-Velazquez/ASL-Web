@@ -7,6 +7,7 @@ import Login from './components/Login';
 import Register from './components/Register';
 import StaffManagement from './components/StaffManagement';
 import Statistics from './components/Statistics';
+import LogsManagement from './components/LogsManagement';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -32,6 +33,7 @@ function App() {
             <Route path="/" element={<Home />} />
             <Route path="/stays" element={<StayManagement />} />
             <Route path="/statistics" element={<Statistics />} />
+            <Route path="/logs" element={<LogsManagement />} />
             <Route path="/admin" element={<StaffManagement />} />
             <Route path="*" element={<Navigate to="/" />} />
           </>

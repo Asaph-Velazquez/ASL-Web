@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { BsPersonBadge, BsPlusLg, BsTrash, BsPencilSquare, BsXLg } from 'react-icons/bs';
+import { useNavigate } from 'react-router-dom';
+import { BsArrowLeft, BsPersonBadge, BsPlusLg, BsTrash, BsPencilSquare, BsXLg } from 'react-icons/bs';
 
 // Iconos Bootstrap
 const AdminIcon = ({ className = "w-6 h-6" }) => <BsPersonBadge className={className} />;
@@ -7,6 +8,7 @@ const TrashIcon = ({ className = "w-4 h-4" }) => <BsTrash className={className} 
 const EditIcon = ({ className = "w-4 h-4" }) => <BsPencilSquare className={className} />;
 const PlusIcon = ({ className = "w-4 h-4" }) => <BsPlusLg className={className} />;
 const XIcon = ({ className = "w-4 h-4" }) => <BsXLg className={className} />;
+const ArrowLeftIcon = ({ className = "w-4 h-4" }) => <BsArrowLeft className={className} />;
 
 interface StaffUser {
   _id: string;
@@ -71,6 +73,7 @@ const getApiErrorMessage = async (response: Response, fallback: string) => {
 };
 
 function StaffManagement() {
+  const navigate = useNavigate();
   const [staffList, setStaffList] = useState<StaffUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -312,6 +315,13 @@ function StaffManagement() {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              <button
+                onClick={() => navigate('/')}
+                className="px-3 py-2 rounded-lg text-xs font-semibold border border-auto text-auto-secondary hover:bg-auto-tertiary flex items-center gap-2"
+              >
+                <ArrowLeftIcon className="w-4 h-4" />
+                Back
+              </button>
               <button
                 onClick={() => setShowRegisterModal(true)}
                 className="px-4 py-2 rounded-lg text-sm font-medium text-white transition-all hover:scale-105 flex items-center gap-2"

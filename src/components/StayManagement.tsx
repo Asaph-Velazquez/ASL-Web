@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   BsCalendar3,
+  BsDashLg,
   BsDownload,
+  BsPencilSquare,
   BsPrinter,
+  BsPlusLg,
   BsQrCode,
   BsStopCircle,
   BsTrash,
@@ -19,15 +23,19 @@ const TrashIcon = ({ className = 'w-4 h-4' }) => <BsTrash className={className} 
 const StopCircleIcon = ({ className = 'w-4 h-4' }) => <BsStopCircle className={className} />;
 const PrinterIcon = ({ className = 'w-4 h-4' }) => <BsPrinter className={className} />;
 const DownloadIcon = ({ className = 'w-4 h-4' }) => <BsDownload className={className} />;
+const EditIcon = ({ className = 'w-4 h-4' }) => <BsPencilSquare className={className} />;
 const CloseIcon = ({ className = 'w-5 h-5' }) => <BsXLg className={className} />;
 const ArrowRightIcon = ({ className = 'w-4 h-4' }) => <BsArrowRight className={className} />;
 const ArrowLeftIcon = ({ className = 'w-4 h-4' }) => <BsArrowLeft className={className} />;
 const RotationIcon = ({ className = 'w-4 h-4' }) => <BsClockHistory className={className} />;
+const PlusIcon = ({ className = 'w-4 h-4' }) => <BsPlusLg className={className} />;
+const MinusIcon = ({ className = 'w-4 h-4' }) => <BsDashLg className={className} />;
 
 interface Stay {
   stayId: string;
   roomNumber: string;
   guestName: string | null;
+  additionalGuests?: string[];
   checkIn: string;
   checkOut: string;
   qrToken?: string;
@@ -140,13 +148,19 @@ function blocksRoomSchedule(stay: Stay) {
   return status === 'scheduled' || status === 'active';
 }
 
+function normalizeGuestFields(guests: string[] = []) {
+  return guests.length > 0 ? guests : [''];
+}
+
 function StayManagement() {
+  const navigate = useNavigate();
   const [stays, setStays] = useState<Stay[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [roomNumber, setRoomNumber] = useState('');
   const [guestName, setGuestName] = useState('');
+  const [additionalGuests, setAdditionalGuests] = useState<string[]>(['']);
   const [checkIn, setCheckIn] = useState(toLocalDateTimeInput(new Date()));
   const [checkOut, setCheckOut] = useState(toLocalDateTimeInput(new Date(Date.now() + 24 * 60 * 60 * 1000)));
 
@@ -158,6 +172,19 @@ function StayManagement() {
     open: false,
     stay: null,
     newCheckOut: '',
+  });
+  const [editModal, setEditModal] = useState<{
+    open: boolean;
+    stay: Stay | null;
+    roomNumber: string;
+    guestName: string;
+    additionalGuests: string[];
+  }>({
+    open: false,
+    stay: null,
+    roomNumber: '',
+    guestName: '',
+    additionalGuests: [''],
   });
 
   const [qrModalOpen, setQrModalOpen] = useState(false);
@@ -412,6 +439,7 @@ function StayManagement() {
         body: JSON.stringify({
           roomNumber: roomNumber.trim(),
           guestName: guestName.trim() || null,
+          additionalGuests: additionalGuests.map((guest) => guest.trim()).filter(Boolean),
           checkIn,
           checkOut,
         }),
@@ -443,6 +471,7 @@ function StayManagement() {
 
       setRoomNumber('');
       setGuestName('');
+      setAdditionalGuests(['']);
       setCheckIn(toLocalDateTimeInput(new Date()));
       setCheckOut(toLocalDateTimeInput(new Date(Date.now() + 24 * 60 * 60 * 1000)));
 
@@ -558,6 +587,56 @@ function StayManagement() {
     setExtendModal({ open: true, stay, newCheckOut: defaultNewDate });
   };
 
+  const openEditModal = (stay: Stay) => {
+    setEditModal({
+      open: true,
+      stay,
+      roomNumber: stay.roomNumber,
+      guestName: stay.guestName || '',
+      additionalGuests: normalizeGuestFields(stay.additionalGuests || []),
+    });
+  };
+
+  const handleUpdateStay = async () => {
+    if (!editModal.stay) {
+      return;
+    }
+
+    if (!editModal.roomNumber.trim()) {
+      showNotification('Room is required', 'warning');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/stays/${editModal.stay.stayId}`, {
+        method: 'PATCH',
+        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          roomNumber: editModal.roomNumber.trim(),
+          guestName: editModal.guestName.trim() || null,
+          additionalGuests: editModal.additionalGuests.map((guest) => guest.trim()).filter(Boolean),
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error || 'Unable to update the reservation');
+      }
+
+      setEditModal({
+        open: false,
+        stay: null,
+        roomNumber: '',
+        guestName: '',
+        additionalGuests: [''],
+      });
+      showNotification('Reservation updated', 'success');
+      await fetchStays();
+    } catch (err) {
+      showNotification(err instanceof Error ? err.message : 'Unable to update the reservation', 'error');
+    }
+  };
+
   const handleExtendStay = async () => {
     if (!extendModal.stay || !extendModal.newCheckOut) {
       showNotification('Enter a new check-out date', 'warning');
@@ -657,14 +736,23 @@ function StayManagement() {
               </div>
             </div>
 
-            <button
-              onClick={handleProcessTransitions}
-              className="px-3 py-2 rounded-lg text-xs font-semibold text-white flex items-center gap-2 hover:opacity-90"
-              style={{ backgroundColor: 'var(--hotel-primary)' }}
-            >
-              <RotationIcon />
-              Process rotation
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => navigate('/')}
+                className="px-3 py-2 rounded-lg text-xs font-semibold border border-auto text-auto-secondary hover:bg-auto-tertiary flex items-center gap-2"
+              >
+                <ArrowLeftIcon />
+                Back
+              </button>
+              <button
+                onClick={handleProcessTransitions}
+                className="px-3 py-2 rounded-lg text-xs font-semibold text-white flex items-center gap-2 hover:opacity-90"
+                style={{ backgroundColor: 'var(--hotel-primary)' }}
+              >
+                <RotationIcon />
+                Process rotation
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -710,6 +798,59 @@ function StayManagement() {
                       color: 'var(--color-text)',
                     }}
                   />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <label className="block text-xs font-medium text-auto-secondary">Additional guests (optional)</label>
+                    <button
+                      type="button"
+                      onClick={() => setAdditionalGuests((prev) => [...prev, ''])}
+                      className="inline-flex items-center gap-2 text-xs font-semibold text-blue-600"
+                    >
+                      <span className="w-5 h-5 rounded-full border-2 border-blue-600 inline-flex items-center justify-center">
+                        <PlusIcon className="w-3 h-3" />
+                      </span>
+                      Add guest
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {additionalGuests.map((guest, index) => (
+                      <div key={`new-guest-${index}`} className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={guest}
+                          onChange={(e) =>
+                            setAdditionalGuests((prev) =>
+                              prev.map((item, itemIndex) => (itemIndex === index ? e.target.value : item))
+                            )
+                          }
+                          placeholder={`Additional guest ${index + 1}`}
+                          className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2"
+                          style={{
+                            backgroundColor: 'var(--color-bg-tertiary)',
+                            borderColor: 'var(--color-border)',
+                            color: 'var(--color-text)',
+                          }}
+                        />
+                        {additionalGuests.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setAdditionalGuests((prev) => prev.filter((_, itemIndex) => itemIndex !== index))
+                            }
+                            className="w-7 h-7 rounded-full border-2 border-red-600 text-red-600 inline-flex items-center justify-center shrink-0"
+                            title="Remove additional guest"
+                          >
+                            <MinusIcon className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="mt-1 text-[11px] text-auto-tertiary">
+                    These names are stored on the stay record only. Communication keeps using the primary guest.
+                  </p>
                 </div>
 
                 <div>
@@ -975,6 +1116,13 @@ function StayManagement() {
 
                       <div className="mt-3 flex items-center gap-2">
                         <button
+                          onClick={() => openEditModal(stay)}
+                          className="px-3 py-1.5 rounded-md text-xs font-semibold border border-auto text-auto-secondary"
+                          title="Edit reservation"
+                        >
+                          Edit
+                        </button>
+                        <button
                           onClick={() => openExtendModal(stay)}
                           disabled={!canExtend}
                           className="px-3 py-1.5 rounded-md text-xs font-semibold text-white disabled:opacity-40"
@@ -1053,6 +1201,14 @@ function StayManagement() {
                               title={canOpenQr ? 'View active QR' : 'QR available when activated'}
                             >
                               <QrCodeIcon className="w-4 h-4 text-auto-secondary" />
+                            </button>
+
+                            <button
+                              onClick={() => openEditModal(stay)}
+                              className="p-1.5 rounded-lg hover:bg-auto-tertiary transition-colors"
+                              title="Edit reservation"
+                            >
+                              <EditIcon className="w-4 h-4 text-auto-secondary" />
                             </button>
 
                             <button
@@ -1170,6 +1326,132 @@ function StayManagement() {
                 style={{ backgroundColor: 'var(--hotel-primary)' }}
               >
                 Confirm extension
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editModal.open && editModal.stay && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-auto-secondary rounded-xl shadow-xl border border-auto max-w-lg w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-auto-primary">Update Reservation</h3>
+              <button
+                onClick={() => setEditModal({ open: false, stay: null, roomNumber: '', guestName: '', additionalGuests: [''] })}
+                className="p-1 rounded-lg hover:bg-auto-tertiary transition-colors"
+              >
+                <CloseIcon className="text-auto-secondary" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-auto-secondary mb-1.5">Room</label>
+                <input
+                  type="text"
+                  value={editModal.roomNumber}
+                  onChange={(e) => setEditModal((prev) => ({ ...prev, roomNumber: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2"
+                  style={{
+                    backgroundColor: 'var(--color-bg-tertiary)',
+                    borderColor: 'var(--color-border)',
+                    color: 'var(--color-text)',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-auto-secondary mb-1.5">Primary guest</label>
+                <input
+                  type="text"
+                  value={editModal.guestName}
+                  onChange={(e) => setEditModal((prev) => ({ ...prev, guestName: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2"
+                  style={{
+                    backgroundColor: 'var(--color-bg-tertiary)',
+                    borderColor: 'var(--color-border)',
+                    color: 'var(--color-text)',
+                  }}
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <label className="block text-xs font-medium text-auto-secondary">Additional guests</label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setEditModal((prev) => ({ ...prev, additionalGuests: [...prev.additionalGuests, ''] }))
+                    }
+                    className="inline-flex items-center gap-2 text-xs font-semibold text-blue-600"
+                  >
+                    <span className="w-5 h-5 rounded-full border-2 border-blue-600 inline-flex items-center justify-center">
+                      <PlusIcon className="w-3 h-3" />
+                    </span>
+                    Add guest
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {editModal.additionalGuests.map((guest, index) => (
+                    <div key={`edit-guest-${index}`} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={guest}
+                        onChange={(e) =>
+                          setEditModal((prev) => ({
+                            ...prev,
+                            additionalGuests: prev.additionalGuests.map((item, itemIndex) =>
+                              itemIndex === index ? e.target.value : item
+                            ),
+                          }))
+                        }
+                        placeholder={`Additional guest ${index + 1}`}
+                        className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2"
+                        style={{
+                          backgroundColor: 'var(--color-bg-tertiary)',
+                          borderColor: 'var(--color-border)',
+                          color: 'var(--color-text)',
+                        }}
+                      />
+                      {editModal.additionalGuests.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditModal((prev) => ({
+                              ...prev,
+                              additionalGuests: prev.additionalGuests.filter((_, itemIndex) => itemIndex !== index),
+                            }))
+                          }
+                          className="w-7 h-7 rounded-full border-2 border-red-600 text-red-600 inline-flex items-center justify-center shrink-0"
+                          title="Remove additional guest"
+                        >
+                          <MinusIcon className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-1 text-[11px] text-auto-tertiary">
+                  This list is only visible in stay registration and update. Guest communication keeps using the primary guest.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-5">
+              <button
+                onClick={() => setEditModal({ open: false, stay: null, roomNumber: '', guestName: '', additionalGuests: [''] })}
+                className="flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold border"
+                style={{ borderColor: 'var(--color-border)' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdateStay}
+                className="flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold text-white"
+                style={{ backgroundColor: 'var(--hotel-primary)' }}
+              >
+                Save changes
               </button>
             </div>
           </div>
