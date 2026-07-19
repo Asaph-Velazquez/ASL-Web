@@ -16,6 +16,7 @@ import {
   BsClockHistory,
 } from 'react-icons/bs';
 import ConfirmationModal from './modals/ConfirmationModal';
+import { getApiBase } from '../utils/env';
 
 const QrCodeIcon = ({ className = 'w-6 h-6' }) => <BsQrCode className={className} />;
 const CalendarIcon = ({ className = 'w-5 h-5' }) => <BsCalendar3 className={className} />;
@@ -59,7 +60,7 @@ interface ConfirmationState {
   onConfirm: (() => void | Promise<void>) | null;
 }
 
-const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'http://localhost:3001/api';
+const API_BASE = getApiBase();
 const WEEK_DAYS = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'];
 
 function getAuthHeaders(extra: Record<string, string> = {}) {

@@ -28,6 +28,7 @@ import LocalTaxiRoundedIcon from "@mui/icons-material/LocalTaxiRounded";
 import ReportProblemRoundedIcon from "@mui/icons-material/ReportProblemRounded";
 import RestaurantRoundedIcon from "@mui/icons-material/RestaurantRounded";
 import ConfirmationModal from "./modals/ConfirmationModal";
+import { getWsUrl } from "../utils/env";
 import TransportResponseModal from "./modals/TransportResponseModal";
 import type { TransportResponseFormValue } from "./modals/TransportResponseModal";
 
@@ -166,7 +167,7 @@ const normalizarTipoPeticion = (
 
 function Home() {
   const navigate = useNavigate();
-  const URL_WS = import.meta.env.VITE_WS_URL || "ws://localhost:3001";
+  const URL_WS = getWsUrl();
   const staffToken = localStorage.getItem("staff_token");
   const { estaConectado, enviarMensaje, ultimoMensaje } = useWebSocket(URL_WS, staffToken);
 

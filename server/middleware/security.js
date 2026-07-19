@@ -196,8 +196,8 @@ export function logSecurityEvent(eventType, data) {
 export const schemas = {
   // Login de staff
   staffLogin: z.object({
-    username: z.string().min(3).max(50),
-    password: z.string().min(6).max(100)
+    username: z.string().trim().min(3).max(50),
+    password: z.string().trim().min(6).max(100)
   }),
 
   // Registro de stay
@@ -238,7 +238,7 @@ export const schemas = {
 export function validateBody(schema) {
   return (req, res, next) => {
     try {
-      schema.parse(req.body);
+      req.body = schema.parse(req.body);
       next();
     } catch (error) {
       logSecurityEvent('INVALID_INPUT', {

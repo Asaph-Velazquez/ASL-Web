@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BsArrowLeft, BsArrowRepeat, BsDownload, BsJournalText, BsListUl, BsCodeSlash, BsXLg } from 'react-icons/bs';
+import { getApiBase } from '../utils/env';
 
-const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'http://localhost:3001/api';
+const API_BASE = getApiBase();
 const AUTO_REFRESH_MS = 15000;
 
 interface StayLogSummary {

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BsBuildingsFill } from 'react-icons/bs';
+import { getApiOrigin } from '../utils/env';
 
 function Login() {
   const navigate = useNavigate();
@@ -15,7 +16,7 @@ function Login() {
     setLoading(true);
 
     try {
-      const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const API_BASE = getApiOrigin();
       const response = await fetch(`${API_BASE}/api/staff/login`, {
         method: 'POST',
         headers: {

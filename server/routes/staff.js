@@ -27,37 +27,40 @@ router.post('/register', async (req, res) => {
     }
 
     const { username, password, fullName, role } = req.body;
+    const normalizedUsername = typeof username === 'string' ? username.trim() : username;
+    const normalizedPassword = typeof password === 'string' ? password.trim() : password;
+    const normalizedFullName = typeof fullName === 'string' ? fullName.trim() : fullName;
 
     // Validar entrada
-    if (!username || !password || !fullName) {
+    if (!normalizedUsername || !normalizedPassword || !normalizedFullName) {
       return res.status(400).json({ 
         error: 'username, password, and fullName are required' 
       });
     }
 
-    if (typeof username !== 'string' || typeof password !== 'string' || typeof fullName !== 'string') {
+    if (typeof normalizedUsername !== 'string' || typeof normalizedPassword !== 'string' || typeof normalizedFullName !== 'string') {
       return res.status(400).json({ 
         error: 'username, password, and fullName must be strings' 
       });
     }
 
-    if (password.length < 6) {
+    if (normalizedPassword.length < 6) {
       return res.status(400).json({ 
         error: 'password must be at least 6 characters' 
       });
     }
 
     // Verificar si el nombre de usuario ya existe
-    const existingUser = await StaffUser.findOne({ username });
+    const existingUser = await StaffUser.findOne({ username: normalizedUsername });
     if (existingUser) {
       return res.status(409).json({ error: 'Username already exists' });
     }
 
     // Crear nuevo usuario de staff (la contrasena se hashea en pre-save)
     const staffUser = new StaffUser({
-      username,
-      password,
-      fullName: fullName,
+      username: normalizedUsername,
+      password: normalizedPassword,
+      fullName: normalizedFullName,
       role: role || 'staff' // Valor por defecto: 'staff'
     });
 
@@ -82,6 +85,7 @@ router.post('/login', loginLimiter, validateBody(schemas.staffLogin), async (req
     const { username, password } = req.body;
 
     const normalizedUsername = username.trim();
+    const normalizedPassword = password.trim();
 
     // Buscar usuario de staff
     const staffUser = await StaffUser.findOne({ username: normalizedUsername });
@@ -89,7 +93,7 @@ router.post('/login', loginLimiter, validateBody(schemas.staffLogin), async (req
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    const isPasswordValid = await staffUser.comparePassword(password);
+    const isPasswordValid = await staffUser.comparePassword(normalizedPassword);
     if (!isPasswordValid) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }

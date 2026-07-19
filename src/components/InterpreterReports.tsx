@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BsArrowLeft, BsJournalText } from 'react-icons/bs';
+import { getApiBase } from '../utils/env';
 
-const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'http://localhost:3001/api';
+const API_BASE = getApiBase();
 
 interface InterpreterReport {
   reportId: string;

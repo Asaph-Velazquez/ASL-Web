@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BsPersonBadge } from 'react-icons/bs';
+import { getApiOrigin } from '../utils/env';
 
 function Register() {
   const navigate = useNavigate();
@@ -37,7 +38,7 @@ function Register() {
     setLoading(true);
 
     try {
-      const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const API_BASE = getApiOrigin();
       const response = await fetch(`${API_BASE}/api/staff/register`, {
         method: 'POST',
         headers: {

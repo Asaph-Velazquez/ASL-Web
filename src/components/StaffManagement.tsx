@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BsArrowLeft, BsPersonBadge, BsPlusLg, BsTrash, BsPencilSquare, BsXLg } from 'react-icons/bs';
+import { getApiOrigin } from '../utils/env';
 
 // Iconos Bootstrap
 const AdminIcon = ({ className = "w-6 h-6" }) => <BsPersonBadge className={className} />;
@@ -38,7 +39,7 @@ interface NotificationState {
   type: 'success' | 'error' | 'warning';
 }
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE = getApiOrigin();
 const INITIAL_REGISTER_FORM: RegisterForm = {
   username: '',
   password: '',
