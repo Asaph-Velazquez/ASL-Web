@@ -8,12 +8,12 @@ import Register from './components/Register';
 import StaffManagement from './components/StaffManagement';
 import Statistics from './components/Statistics';
 import LogsManagement from './components/LogsManagement';
+import InterpreterReports from './components/InterpreterReports';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Verificar autenticacion al montar
   useEffect(() => {
     const token = localStorage.getItem('staff_token');
     setIsAuthenticated(!!token);
@@ -23,6 +23,7 @@ function App() {
   if (isLoading) {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
   }
+
   return (
     <div>
       <Routes>
@@ -34,6 +35,7 @@ function App() {
             <Route path="/stays" element={<StayManagement />} />
             <Route path="/statistics" element={<Statistics />} />
             <Route path="/logs" element={<LogsManagement />} />
+            <Route path="/interpreter-reports" element={<InterpreterReports />} />
             <Route path="/admin" element={<StaffManagement />} />
             <Route path="*" element={<Navigate to="/" />} />
           </>
@@ -42,7 +44,7 @@ function App() {
         )}
       </Routes>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;

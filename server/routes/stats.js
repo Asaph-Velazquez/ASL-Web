@@ -10,6 +10,7 @@ const SERVICE_LABELS = {
   'room-service': 'Room Service',
   problem: 'Problems',
   extra: 'Extra',
+  'interpreter-follow-up': 'Interpreter Follow-Up',
 };
 
 function parseDate(value) {

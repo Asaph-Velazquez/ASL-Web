@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { type CSSProperties, type ReactNode, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWebSocket } from "../hooks/useWebSocket";
 import {
@@ -58,7 +58,7 @@ const LogsIcon = ({ className = "w-4 h-4" }) => <BsJournalText className={classN
 // Tipos de datos
 interface Peticion {
   id: string;
-  tipo: "services" | "room-service" | "problem" | "extra";
+  tipo: "services" | "room-service" | "problem" | "extra" | "interpreter-follow-up";
   numeroHabitacion: string;
   nombreHuesped: string;
   mensaje: string;
@@ -140,6 +140,10 @@ const normalizarTipoPeticion = (
 ): Peticion["tipo"] => {
   const t = (tipo || "").toLowerCase();
   const m = (mensaje || "").toLowerCase();
+
+  if (["interpreter-follow-up", "interpreter_follow_up", "interpreter report"].includes(t)) {
+    return "interpreter-follow-up";
+  }
 
   const esMovilidad =
     ["services", "service", "movilidad", "mobility", "taxi", "parking", "parkink", "estacionamiento"].includes(t) ||
@@ -552,6 +556,15 @@ function Home() {
                 <StatsIcon className="w-3.5 h-3.5" />
                 Statistics
               </button>
+              <button
+                onClick={() => navigate("/interpreter-reports")}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:scale-105 flex items-center gap-1.5 text-white"
+                style={{ backgroundColor: "#0f766e" }}
+                title="View interpreter reports"
+              >
+                <LogsIcon className="w-3.5 h-3.5" />
+                Interpreter Reports
+              </button>
               {userRole === "admin" && (
                 <button
                   onClick={() => navigate("/logs")}
@@ -717,7 +730,7 @@ function Home() {
                       style={
                         {
                           "--tw-ring-color": "var(--hotel-primary)",
-                        } as React.CSSProperties
+                        } as CSSProperties
                       }
                     />
                   </div>
@@ -882,6 +895,21 @@ function Home() {
                     >
                       <SparklesIcon className="w-3.5 h-3.5" /> Extra
                     </button>
+                    <button
+                      onClick={() => toggleFiltroTipo("interpreter-follow-up")}
+                      className={`px-3 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-1.5 text-xs ${
+                        filtros.tipo.includes("interpreter-follow-up")
+                          ? "text-white shadow-md"
+                          : "bg-auto-tertiary/50 text-auto-secondary hover:bg-auto-tertiary border border-auto"
+                      }`}
+                      style={
+                        filtros.tipo.includes("interpreter-follow-up")
+                          ? { backgroundColor: "#0f766e" }
+                          : {}
+                      }
+                    >
+                      <LogsIcon className="w-3.5 h-3.5" /> Interpreter
+                    </button>
                   </div>
                 </div>
               </div>
@@ -925,7 +953,7 @@ function Home() {
 interface PropsTarjetaEstadistica {
   titulo: string;
   valor: number;
-  icono: React.ReactNode;
+  icono: ReactNode;
   color: string;
 }
 
@@ -1005,6 +1033,11 @@ function TarjetaPeticion({
       icono: <SparklesIcon className="w-6 h-6" />,
       color: "var(--extra)",
     },
+    "interpreter-follow-up": {
+      etiqueta: "Interpreter Follow-Up",
+      icono: <LogsIcon className="w-6 h-6" />,
+      color: "#0f766e",
+    },
   };
 
   const configEstado = {
@@ -1077,6 +1110,22 @@ function TarjetaPeticion({
           <span className="flex-1">{peticion.mensaje}</span>
         </p>
       </div>
+
+      {peticion.tipo === "interpreter-follow-up" && isObjectRecord(peticion.details) && (
+        <div className="bg-teal-50/70 rounded-lg p-3 mb-3 border border-teal-200">
+          <div className="grid grid-cols-2 gap-2 text-xs text-slate-700">
+            <span><strong>Category:</strong> {peticion.details.category || "General"}</span>
+            <span><strong>Report ID:</strong> {peticion.details.reportId || "N/A"}</span>
+            <span><strong>Interpreter:</strong> {peticion.details.interpreterName || "N/A"}</span>
+            <span><strong>Call ID:</strong> {peticion.details.callId || "N/A"}</span>
+          </div>
+          {peticion.details.interpreterNotes && (
+            <p className="text-xs text-slate-700 mt-2">
+              <strong>Notes:</strong> {peticion.details.interpreterNotes}
+            </p>
+          )}
+        </div>
+      )}
 
       {taxiDetails && (
         <div className="bg-auto-tertiary/50 rounded-lg p-3 mb-3 border border-auto">
@@ -1340,3 +1389,6 @@ function TarjetaPeticion({
 }
 
 export default Home;
+
+
+

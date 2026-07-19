@@ -68,7 +68,7 @@ const requestSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ['services', 'room-service', 'problem', 'extra'],
+      enum: ['services', 'room-service', 'problem', 'extra', 'interpreter-follow-up'],
       required: true,
     },
     message: {
@@ -137,3 +137,4 @@ requestSchema.index({ status: 1, timestamp: -1 });
 const Request = mongoose.model('Request', requestSchema);
 
 export { Request };
+
