@@ -87,6 +87,22 @@ npm run dev
 
 El panel web se ejecutará en `http://localhost:5173`
 
+### Tunel publico unico para mobile y videollamada
+
+Cuando necesites exponer el sistema hacia la app movil o pruebas remotas, el punto de entrada recomendado es solo `ASL-Web/server`:
+
+- publica `http://localhost:3001` con `ngrok`
+- manten `ASL-CallAPP/server` en `http://localhost:3101` como upstream interno
+- el backend web reenvia `/calls` y `/api/interpreter/*` al servidor de llamadas
+
+Con esto, el dominio publico del tunel sirve tanto para:
+
+- API y WebSocket operativos del hotel
+- `call session` consumida por la app movil
+- WebSocket de videollamada y endpoints del interprete proxied desde el backend web
+
+No se recomienda exponer `3101` por separado en el runbook base, especialmente si trabajas con un solo dominio `ngrok free`.
+
 ### Dockerizar solo el server
 
 La carpeta [`server`](C:\Users\samur\Downloads\TT\ASL-System\ASL-Web\server) ya incluye:
@@ -194,6 +210,7 @@ npm run lint       # Ejecutar linter
 
 Este panel web se comunica con:
 - **ASL-MobileApp**: Recibe peticiones en tiempo real vía WebSocket de la aplicación móvil que ya incluye el procesamiento de lenguaje de señas integrado
+- **ASL-CallAPP/server**: Actua como upstream interno para presencia de interpretes, senalizacion y reportes de videollamada cuando el backend web opera como gateway publico unico
 
 **Nota**: El procesamiento de lenguaje de señas (ASL-IA) está integrado directamente en la aplicación móvil. Este panel web solo visualiza las peticiones ya procesadas.
 
