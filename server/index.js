@@ -1,6 +1,6 @@
 import express from 'express';
-import { createServer } from 'http';
-import { createServer as createHTTPServer } from 'https';
+import { createServer, request as httpRequest } from 'http';
+import { createServer as createHTTPServer, request as httpsRequest } from 'https';
 import { readFileSync, existsSync } from 'fs';
 import { WebSocketServer } from 'ws';
 import mongoose from 'mongoose';
@@ -43,6 +43,32 @@ const PORT = process.env.PORT || 3001;
 const HTTPS_PORT = process.env.HTTPS_PORT || 3002;
 const USE_HTTPS = process.env.USE_HTTPS === 'true';
 const NODE_ENV = process.env.NODE_ENV || 'development';
+const DEFAULT_CALL_PROXY_TARGET = 'http://localhost:3101';
+const DEFAULT_CALL_SERVER_PATH = '/calls';
+const DEFAULT_HOTEL_WS_PATH = '/ws/hotel';
+const CALL_PROXY_TARGET = process.env.CALL_PROXY_TARGET || DEFAULT_CALL_PROXY_TARGET;
+const CALL_PROXY_URL = new URL(CALL_PROXY_TARGET);
+const HOTEL_WS_PATH = (() => {
+  const rawPath = String(process.env.HOTEL_WS_PATH || DEFAULT_HOTEL_WS_PATH).trim();
+  if (!rawPath || rawPath === '/') {
+    return DEFAULT_HOTEL_WS_PATH;
+  }
+
+  return rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
+})();
+const ENABLE_LEGACY_ROOT_WS = process.env.ENABLE_LEGACY_ROOT_WS === 'true';
+const CALL_SERVER_PATH = (() => {
+  const rawPath = String(process.env.CALL_SERVER_PATH || DEFAULT_CALL_SERVER_PATH).trim();
+  if (!rawPath || rawPath === '/') {
+    return DEFAULT_CALL_SERVER_PATH;
+  }
+
+  return rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
+})();
+
+if (HOTEL_WS_PATH === CALL_SERVER_PATH) {
+  throw new Error('HOTEL_WS_PATH must not match CALL_SERVER_PATH');
+}
 
 app.use(helmetMiddleware);
 app.use(sanitizeInput);
@@ -57,8 +83,83 @@ app.use((req, res, next) => {
   });
 });
 
-app.use(express.json({ limit: '10kb' }));
 app.use('/api', generalLimiter);
+
+function appendForwardedFor(existingValue, remoteAddress) {
+  const current = Array.isArray(existingValue) ? existingValue.join(', ') : existingValue || '';
+  return current ? `${current}, ${remoteAddress}` : remoteAddress;
+}
+
+function buildProxyHeaders(req) {
+  const forwardedProto = req.headers['x-forwarded-proto']
+    || (req.socket.encrypted ? 'https' : 'http');
+
+  return {
+    ...req.headers,
+    host: CALL_PROXY_URL.host,
+    'x-forwarded-host': req.headers.host || '',
+    'x-forwarded-proto': forwardedProto,
+    'x-forwarded-for': appendForwardedFor(req.headers['x-forwarded-for'], req.socket.remoteAddress || ''),
+  };
+}
+
+function shouldProxyCallHttp(req) {
+  const pathname = new URL(req.url, `http://${req.headers.host || 'localhost'}`).pathname;
+  return pathname === '/api/interpreter'
+    || pathname.startsWith('/api/interpreter/')
+    || /^\/api\/calls\/[^/]+\/report\/?$/.test(pathname);
+}
+
+function proxyCallHttp(req, res) {
+  const requestFn = CALL_PROXY_URL.protocol === 'https:' ? httpsRequest : httpRequest;
+  const proxyRequest = requestFn(
+    {
+      protocol: CALL_PROXY_URL.protocol,
+      hostname: CALL_PROXY_URL.hostname,
+      port: CALL_PROXY_URL.port || (CALL_PROXY_URL.protocol === 'https:' ? 443 : 80),
+      method: req.method,
+      path: req.url,
+      headers: buildProxyHeaders(req),
+    },
+    (proxyResponse) => {
+      res.status(proxyResponse.statusCode || 502);
+      Object.entries(proxyResponse.headers).forEach(([key, value]) => {
+        if (value !== undefined) {
+          res.setHeader(key, value);
+        }
+      });
+      proxyResponse.pipe(res);
+    }
+  );
+
+  proxyRequest.on('error', (error) => {
+    logOperationalError('CALL_PROXY_HTTP_FAILED', error, {
+      source: 'server:index',
+      target: CALL_PROXY_TARGET,
+      method: req.method,
+      path: req.url,
+    });
+
+    if (!res.headersSent) {
+      res.status(502).json({ error: 'Call proxy unavailable' });
+    } else {
+      res.end();
+    }
+  });
+
+  req.pipe(proxyRequest);
+}
+
+app.use((req, res, next) => {
+  if (!shouldProxyCallHttp(req)) {
+    next();
+    return;
+  }
+
+  proxyCallHttp(req, res);
+});
+
+app.use(express.json({ limit: '10kb' }));
 
 // Conexion a MongoDB
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/asl-hotel';
@@ -399,21 +500,106 @@ wss.on('connection', async (ws) => {
   });
 });
 
-// Manejar el upgrade a WebSocket en el mismo servidor HTTP
-// Manejar upgrade WebSocket con validacion JWT
-server.on('upgrade', async (request, socket, head) => {
+function writeProxyUpgradeResponse(socket, proxyResponse, proxyHead) {
+  const statusLine = `HTTP/1.1 ${proxyResponse.statusCode || 101} ${proxyResponse.statusMessage || 'Switching Protocols'}\r\n`;
+  const headers = proxyResponse.rawHeaders.reduce((output, value, index, rawHeaders) => {
+    if (index % 2 === 0) {
+      return `${output}${value}: ${rawHeaders[index + 1]}\r\n`;
+    }
+    return output;
+  }, '');
+
+  socket.write(`${statusLine}${headers}\r\n`);
+  if (proxyHead?.length) {
+    socket.write(proxyHead);
+  }
+}
+
+function matchesHotelSocketPath(pathname) {
+  return pathname === HOTEL_WS_PATH || (ENABLE_LEGACY_ROOT_WS && pathname === '/');
+}
+
+function rejectUpgrade(socket, statusCode, statusMessage) {
+  socket.write(`HTTP/1.1 ${statusCode} ${statusMessage}\r\n\r\n`);
+  socket.destroy();
+}
+
+function proxyCallWebSocketUpgrade(request, socket, head) {
+  const requestFn = CALL_PROXY_URL.protocol === 'https:' ? httpsRequest : httpRequest;
+  const proxyRequest = requestFn({
+    protocol: CALL_PROXY_URL.protocol,
+    hostname: CALL_PROXY_URL.hostname,
+    port: CALL_PROXY_URL.port || (CALL_PROXY_URL.protocol === 'https:' ? 443 : 80),
+    method: request.method,
+    path: request.url,
+    headers: {
+      ...buildProxyHeaders(request),
+      connection: request.headers.connection || 'Upgrade',
+      upgrade: request.headers.upgrade || 'websocket',
+    },
+  });
+
+  proxyRequest.on('upgrade', (proxyResponse, proxySocket, proxyHead) => {
+    writeProxyUpgradeResponse(socket, proxyResponse, proxyHead);
+    if (head?.length) {
+      proxySocket.write(head);
+    }
+    proxySocket.on('error', () => socket.destroy());
+    socket.on('error', () => proxySocket.destroy());
+    proxySocket.pipe(socket).pipe(proxySocket);
+  });
+
+  proxyRequest.on('response', (proxyResponse) => {
+    const statusLine = `HTTP/1.1 ${proxyResponse.statusCode || 502} ${proxyResponse.statusMessage || 'Bad Gateway'}\r\n`;
+    const headers = Object.entries(proxyResponse.headers).reduce((output, [key, value]) => {
+      if (value === undefined) {
+        return output;
+      }
+      if (Array.isArray(value)) {
+        return `${output}${value.map((item) => `${key}: ${item}\r\n`).join('')}`;
+      }
+      return `${output}${key}: ${value}\r\n`;
+    }, '');
+    socket.write(`${statusLine}${headers}\r\n`);
+    proxyResponse.pipe(socket);
+  });
+
+  proxyRequest.on('error', (error) => {
+    logOperationalError('CALL_PROXY_WS_FAILED', error, {
+      source: 'server:index',
+      target: CALL_PROXY_TARGET,
+      path: request.url,
+    });
+    socket.write('HTTP/1.1 502 Bad Gateway\r\n\r\n');
+    socket.destroy();
+  });
+
+  proxyRequest.end();
+}
+
+async function handleWebSocketUpgrade(request, socket, head) {
   try {
-    await processStayTransitions();
     const url = new URL(request.url, `http://${request.headers.host}`);
+    if (url.pathname === CALL_SERVER_PATH) {
+      proxyCallWebSocketUpgrade(request, socket, head);
+      return;
+    }
+
+    if (!matchesHotelSocketPath(url.pathname)) {
+      rejectUpgrade(socket, 404, 'Not Found');
+      return;
+    }
+
+    await processStayTransitions();
     const token = url.searchParams.get('token');
 
     // Todo cliente WebSocket debe autenticarse con JWT
     if (!token) {
-      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-      socket.destroy();
+      rejectUpgrade(socket, 401, 'Unauthorized');
       console.log('❌ Conexion WebSocket rechazada: no se proporciono token');
       logOperationalError('WS_UPGRADE_MISSING_TOKEN', new Error('Missing token'), {
         source: 'websocket-upgrade',
+        path: url.pathname,
       });
       return;
     }
@@ -423,11 +609,11 @@ server.on('upgrade', async (request, socket, head) => {
     try {
       decoded = jwt.verify(token, process.env.JWT_SECRET);
     } catch (err) {
-      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-      socket.destroy();
+      rejectUpgrade(socket, 401, 'Unauthorized');
       console.log('❌ Conexion WebSocket rechazada: token invalido');
       logOperationalError('WS_UPGRADE_INVALID_TOKEN', err, {
         source: 'websocket-upgrade',
+        path: url.pathname,
       });
       return;
     }
@@ -452,41 +638,41 @@ server.on('upgrade', async (request, socket, head) => {
     const stay = await Stay.findOne({ stayId });
     
     if (!stay) {
-      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-      socket.destroy();
+      rejectUpgrade(socket, 401, 'Unauthorized');
       console.log('❌ Conexion WebSocket rechazada: estancia no encontrada');
       logOperationalError('WS_UPGRADE_STAY_NOT_FOUND', new Error('Stay not found'), {
         stayId,
         roomNumber,
         guestName,
         source: 'websocket-upgrade',
+        path: url.pathname,
       });
       return;
     }
 
     if (!stay.active) {
-      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-      socket.destroy();
+      rejectUpgrade(socket, 401, 'Unauthorized');
       console.log('❌ Conexion WebSocket rechazada: estancia inactiva');
       logOperationalError('WS_UPGRADE_INACTIVE_STAY', new Error('Inactive stay'), {
         stayId: stay.stayId,
         roomNumber: stay.roomNumber,
         guestName: stay.guestName || guestName,
         source: 'websocket-upgrade',
+        path: url.pathname,
       });
       return;
     }
 
     const now = new Date();
     if (stay.checkOut <= now) {
-      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-      socket.destroy();
+      rejectUpgrade(socket, 401, 'Unauthorized');
       console.log('❌ Conexion WebSocket rechazada: estancia vencida');
       logOperationalError('WS_UPGRADE_EXPIRED_STAY', new Error('Expired stay'), {
         stayId: stay.stayId,
         roomNumber: stay.roomNumber,
         guestName: stay.guestName || guestName,
         source: 'websocket-upgrade',
+        path: url.pathname,
       });
       return;
     }
@@ -506,15 +692,24 @@ server.on('upgrade', async (request, socket, head) => {
     logOperationalError('WS_UPGRADE_FAILED', error, {
       source: 'websocket-upgrade',
     });
-    socket.write('HTTP/1.1 500 Internal Server Error\r\n\r\n');
-    socket.destroy();
+    rejectUpgrade(socket, 500, 'Internal Server Error');
   }
-});
+}
+
+// Manejar el upgrade a WebSocket en el mismo servidor HTTP
+// Manejar upgrade WebSocket con validacion JWT
+server.on('upgrade', handleWebSocketUpgrade);
 
 const startServer = (srv, port, isHTTPS, wsUrl) => {
   srv.listen(port, () => {
+    const wsBaseUrl = wsUrl.replace(/^http/i, 'ws');
     console.log(`🚀 Servidor ${isHTTPS ? 'HTTPS' : 'HTTP'} + WebSocket iniciado en:`);
     console.log(`   - ${isHTTPS ? 'HTTPS' : 'HTTP'}: ${wsUrl}`);
+    console.log(`   - Hotel WebSocket: ${wsBaseUrl}${HOTEL_WS_PATH}`);
+    console.log(`   - Call WebSocket Proxy: ${wsBaseUrl}${CALL_SERVER_PATH}`);
+    if (ENABLE_LEGACY_ROOT_WS) {
+      console.log('   ⚠️  Compatibilidad legacy del WebSocket en "/" habilitada solo por transicion');
+    }
     if (isHTTPS) {
       console.log(`   ⚠️  CERTIFICADO AUTOFIRMADO - Acepta la advertencia en el navegador`);
     }
@@ -550,9 +745,7 @@ if (USE_HTTPS && existsSync('cert.pem') && existsSync('key.pem')) {
     });
   });
 
-  httpsServer.on('upgrade', (request, socket, head) => {
-    wss.emit('upgrade', request, socket, head);
-  });
+  httpsServer.on('upgrade', handleWebSocketUpgrade);
 
   startServer(httpsServer, HTTPS_PORT, true, `https://localhost:${HTTPS_PORT}`);
   console.log(`   - WebSocket Secure: wss://localhost:${HTTPS_PORT}`);

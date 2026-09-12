@@ -50,6 +50,12 @@ const requestSchema = new mongoose.Schema(
       index: true,
       trim: true,
     },
+    sourceReportId: {
+      type: String,
+      default: null,
+      index: true,
+      trim: true,
+    },
     stayId: {
       type: String,
       default: null,

@@ -77,18 +77,36 @@ export const helmetMiddleware = helmet({
 // CORS ESTRICTO
 // =============================================================
 
+const DEFAULT_ALLOWED_ORIGINS = [
+  'http://localhost:3001',
+  'http://localhost:5173',
+  'https://localhost:3002',
+  'http://localhost:8081',
+  'http://localhost:8082',
+  'http://localhost:19006',
+];
+
+function getAllowedOrigins() {
+  const configuredOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean)
+    : [];
+
+  return [...new Set([...DEFAULT_ALLOWED_ORIGINS, ...configuredOrigins])];
+}
+
 export const corsOptions = {
   origin: (origin, callback) => {
-    const allowedOrigins = process.env.ALLOWED_ORIGINS
-      ? process.env.ALLOWED_ORIGINS.split(',')
-      : ['http://localhost:5173', 'http://localhost:3001'];
+    const allowedOrigins = getAllowedOrigins();
 
     // Permitir requests sin origin (Postman, curl)
     if (!origin) {
       return callback(null, true);
     }
 
-    if (allowedOrigins.includes(origin)) {
+    if (allowedOrigins.includes(origin.trim())) {
       return callback(null, true);
     }
 
