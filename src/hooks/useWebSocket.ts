@@ -4,15 +4,18 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 interface MensajeWebSocket {
   type: string;
   payload: any;
+  operationId?: string;
 }
 
 interface RetornoUseWebSocket {
   estaConectado: boolean;
-  enviarMensaje: (mensaje: MensajeWebSocket) => void;
+  enviarMensaje: (mensaje: MensajeWebSocket) => boolean;
   ultimoMensaje: MensajeWebSocket | null;
 }
 
-export function useWebSocket(url: string, token?: string | null): RetornoUseWebSocket {
+export function useWebSocket(url: string, token?: string | null, onMessage?: (message: MensajeWebSocket) => void): RetornoUseWebSocket {
+  const messageListener = useRef(onMessage);
+  useEffect(() => { messageListener.current = onMessage; }, [onMessage]);
   const [estaConectado, setEstaConectado] = useState(false);
   const [ultimoMensaje, setUltimoMensaje] = useState<MensajeWebSocket | null>(null);
   const refWs = useRef<WebSocket | null>(null);
@@ -36,6 +39,7 @@ export function useWebSocket(url: string, token?: string | null): RetornoUseWebS
       ws.onmessage = (evento) => {
         try {
           const mensaje = JSON.parse(evento.data);
+          messageListener.current?.(mensaje);
           setUltimoMensaje(mensaje);
         } catch {
         }
@@ -67,9 +71,15 @@ export function useWebSocket(url: string, token?: string | null): RetornoUseWebS
 
   const enviarMensaje = useCallback((mensaje: MensajeWebSocket) => {
     if (refWs.current && refWs.current.readyState === WebSocket.OPEN) {
-      refWs.current.send(JSON.stringify(mensaje));
+      try {
+        refWs.current.send(JSON.stringify(mensaje));
+        return true;
+      } catch {
+        return false;
+      }
     } else {
     }
+    return false;
   }, []);
 
   useEffect(() => {

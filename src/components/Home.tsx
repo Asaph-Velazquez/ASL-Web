@@ -1,4 +1,4 @@
-import { type CSSProperties, type ReactNode, useState, useEffect } from "react";
+import { type CSSProperties, type ReactNode, useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWebSocket } from "../hooks/useWebSocket";
 import {
@@ -31,6 +31,11 @@ import ConfirmationModal from "./modals/ConfirmationModal";
 import { getWsUrl } from "../utils/env";
 import TransportResponseModal from "./modals/TransportResponseModal";
 import type { TransportResponseFormValue } from "./modals/TransportResponseModal";
+import TransportProposalModal from "./modals/TransportProposalModal";
+import { currentAcceptance, formatTransportPrice, transportAcceptanceStatus, transportResult, validOptions, validPassengerCount, validVehicles } from "../utils/transport";
+import type { TransportOption, TransportVehicle } from "../utils/transport";
+import { canonicalRequestId, reduceRequestMessage } from "../utils/requestState";
+import type { RequestRecord } from "../utils/requestState";
 
 // Componentes de iconos Bootstrap
 const HotelIcon = () => <BsBuildingsFill className="w-10 h-10 text-white" />;
@@ -80,24 +85,8 @@ interface Filtros {
   busqueda: string;
 }
 
-interface PersistedRequest {
-  requestId: string;
-  type: string;
-  roomNumber: string;
-  guestName: string;
-  message: string;
-  priority: 'low' | 'medium' | 'high' | 'urgent';
-  status: 'pending' | 'in-progress' | 'completed' | 'cancelled';
-  timestamp: string;
-  cancelledBy?: 'staff' | 'guest';
-  cancelledByName?: string;
-  cancelledAt?: string;
-  rating?: number;
-  ratedAt?: string;
-  details?: any;
-}
-
 interface TransportResponse {
+  vehicles?: TransportVehicle[];
   vehiclePlate: string;
   vehicleModel: string;
   transportCost?: string;
@@ -169,9 +158,24 @@ function Home() {
   const navigate = useNavigate();
   const URL_WS = getWsUrl();
   const staffToken = localStorage.getItem("staff_token");
-  const { estaConectado, enviarMensaje, ultimoMensaje } = useWebSocket(URL_WS, staffToken);
 
-  const [peticiones, setPeticiones] = useState<Peticion[]>([]);
+  const [requestRecords, setRequestRecords] = useState<RequestRecord[]>([]);
+  const peticiones: Peticion[] = requestRecords.map(request => ({
+    id: canonicalRequestId(request)!,
+    tipo: normalizarTipoPeticion(request.type, request.message),
+    numeroHabitacion: request.roomNumber || '',
+    nombreHuesped: request.guestName || '',
+    mensaje: request.message || '',
+    prioridad: request.priority || 'medium',
+    estado: request.status || 'pending',
+    fecha: new Date(request.timestamp || 0),
+    cancelledBy: request.cancelledBy,
+    cancelledByName: request.cancelledByName,
+    cancelledAt: request.cancelledAt,
+    rating: request.rating,
+    ratedAt: request.ratedAt,
+    details: request.details,
+  }));
   const [filtros, setFiltros] = useState<Filtros>({
     estado: [],
     tipo: [],
@@ -185,6 +189,59 @@ function Home() {
   const [showTransportModal, setShowTransportModal] = useState(false);
   const [transportRequestId, setTransportRequestId] = useState<string | null>(null);
   const [isTransportSaving, setIsTransportSaving] = useState(false);
+  const [proposalMode, setProposalMode] = useState<'publish' | 'assign' | null>(null);
+  const [transportError, setTransportError] = useState('');
+  const pendingTransport = useRef<{ operationId: string; requestId: string; legacy?: TransportResponseFormValue; timer: ReturnType<typeof setTimeout> } | null>(null);
+  const { estaConectado, enviarMensaje } = useWebSocket(URL_WS, staffToken, message => {
+    // Apply every frame in order: a result must not hide an update or cancellation.
+    setRequestRecords(current => reduceRequestMessage(current, message));
+    const pending = pendingTransport.current;
+    if (!pending) return;
+    const result = message.payload;
+    const response = result?.details?.transportResponse;
+    const legacyConfirmed = pending.legacy && message.type === 'UPDATE_REQUEST' && result && canonicalRequestId(result) === pending.requestId &&
+      response?.vehiclePlate === pending.legacy.vehiclePlate && response?.vehicleModel === pending.legacy.vehicleModel &&
+      (!pending.legacy.transportCost || response?.transportCost === pending.legacy.transportCost);
+    const acknowledgement = transportResult(message, pending.operationId);
+    if (!legacyConfirmed && !acknowledgement) return;
+    clearTimeout(pending.timer);
+    pendingTransport.current = null;
+    setIsTransportSaving(false);
+    if (legacyConfirmed || acknowledgement?.ok === true) {
+      setShowTransportModal(false);
+      setProposalMode(null);
+      setTransportRequestId(null);
+      setTransportError('');
+    } else {
+      setTransportError(acknowledgement?.error || 'Transport operation failed. Review the current request and try again.');
+    }
+  });
+
+  useEffect(() => () => { if (pendingTransport.current) clearTimeout(pendingTransport.current.timer); }, []);
+
+  const sendTransport = (type: string, payload: Record<string, unknown>, legacy?: TransportResponseFormValue) => {
+    if (pendingTransport.current) return;
+    if (!estaConectado) { setTransportError('Disconnected. Reconnect before saving.'); return; }
+    const operationId = crypto.randomUUID();
+    if (JSON.stringify({ type, operationId, payload }).length > 10000) {
+      setTransportError('Transport data exceeds the server message limit. Shorten vehicle labels before saving.');
+      return;
+    }
+    setTransportError('');
+    setIsTransportSaving(true);
+    const timer = setTimeout(() => {
+      pendingTransport.current = null;
+      setIsTransportSaving(false);
+      setTransportError('No server confirmation received. Check the current request before retrying.');
+    }, 20000);
+    pendingTransport.current = { operationId, requestId: String(payload.id), legacy, timer };
+    if (!enviarMensaje({ type, operationId, payload })) {
+      clearTimeout(timer);
+      pendingTransport.current = null;
+      setIsTransportSaving(false);
+      setTransportError('Message not sent. Reconnect and try again.');
+    }
+  };
 
   // Manejadores de filtros
   const toggleFiltroEstado = (estado: string) => {
@@ -266,6 +323,8 @@ function Home() {
     idPeticion: string,
     nuevoEstado: "pending" | "in-progress" | "completed",
   ) => {
+    const request = peticiones.find(peticion => peticion.id === idPeticion);
+    if (!request || !['pending', 'in-progress'].includes(request.estado)) return;
     enviarMensaje({
       type: "UPDATE_REQUEST",
       payload: {
@@ -273,13 +332,6 @@ function Home() {
         status: nuevoEstado,
       },
     });
-
-    // Actualizar localmente también
-    setPeticiones((prev) =>
-      prev.map((pet) =>
-        pet.id === idPeticion ? { ...pet, estado: nuevoEstado } : pet,
-      ),
-    );
 
   };
 
@@ -321,11 +373,25 @@ function Home() {
   );
 
   const abrirModalTransporte = (peticion: Peticion) => {
+    setTransportError('');
     setTransportRequestId(peticion.id);
+    if (inferTransportKind(peticion.details, peticion.mensaje) === 'taxi' && peticion.details?.transportProposals) {
+      setProposalMode('assign');
+      return;
+    }
     setShowTransportModal(true);
   };
 
+  const abrirPropuestas = (peticion: Peticion) => {
+    setTransportError('');
+    setTransportRequestId(peticion.id);
+    setProposalMode('publish');
+  };
+
   const cerrarModalTransporte = () => {
+    if (pendingTransport.current) return;
+    setProposalMode(null);
+    setTransportError('');
     setShowTransportModal(false);
     setTransportRequestId(null);
     setIsTransportSaving(false);
@@ -341,11 +407,9 @@ function Home() {
       peticionSeleccionadaParaTransporte.mensaje,
     );
 
-    if (!transportKind) {
+    if (!transportKind || (transportKind === 'taxi' && peticionSeleccionadaParaTransporte.details?.transportProposals)) {
       return;
     }
-
-    setIsTransportSaving(true);
 
     const updatedAt = new Date().toISOString();
     const updatedBy = localStorage.getItem("staff_username") || "Staff";
@@ -363,126 +427,14 @@ function Home() {
       transportResponse: nextTransportResponse,
     };
 
-    enviarMensaje({
-      type: "UPDATE_REQUEST",
-      payload: {
+    sendTransport("UPDATE_REQUEST", {
         id: peticionSeleccionadaParaTransporte.id,
         details: nextDetails,
         note: transportKind === "taxi"
           ? "Transport response updated with cost"
           : "Transport response updated",
-      },
-    });
-
-    setPeticiones((prev) =>
-      prev.map((pet) =>
-        pet.id === peticionSeleccionadaParaTransporte.id
-          ? { ...pet, details: nextDetails }
-          : pet,
-      ),
-    );
-
-    cerrarModalTransporte();
+      }, value);
   };
-
-  // Escuchar mensajes de WebSocket
-  useEffect(() => {
-    if (ultimoMensaje) {
-      try {
-        switch (ultimoMensaje.type) {
-          case "INIT_REQUESTS":
-            const persistedRequests = Array.isArray(ultimoMensaje.payload?.requests)
-              ? (ultimoMensaje.payload.requests as PersistedRequest[])
-              : [];
-            setPeticiones(
-              persistedRequests.map((request) => ({
-                id: request.requestId,
-                tipo: normalizarTipoPeticion(request.type, request.message),
-                numeroHabitacion: request.roomNumber,
-                nombreHuesped: request.guestName,
-                mensaje: request.message,
-                prioridad: request.priority,
-                estado: request.status,
-                fecha: new Date(request.timestamp),
-                cancelledBy: request.cancelledBy,
-                cancelledByName: request.cancelledByName,
-                cancelledAt: request.cancelledAt,
-                rating: request.rating,
-                ratedAt: request.ratedAt,
-                details: request.details,
-              })),
-            );
-            break;
-          case "NEW_REQUEST":
-            const payload = ultimoMensaje.payload;
-            const nuevaPeticion: Peticion = {
-              id: payload.id,
-              tipo: normalizarTipoPeticion(payload.type, payload.message),
-              numeroHabitacion: payload.roomNumber,
-              nombreHuesped: payload.guestName,
-              mensaje: payload.message,
-              prioridad: payload.priority,
-              estado: payload.status,
-              fecha: new Date(payload.timestamp),
-              details: payload.details,
-            };
-            setPeticiones((prev) => [nuevaPeticion, ...prev]);
-            break;
-          case "UPDATE_REQUEST":
-            const update = ultimoMensaje.payload;
-            setPeticiones((prev) =>
-              prev.map((r) =>
-                r.id === update.id
-                  ? {
-                      ...r,
-                      estado: update.status || update.estado || r.estado,
-                      details: update.details ?? r.details,
-                    }
-                  : r,
-              ),
-            );
-            break;
-          case "CANCEL_REQUEST":
-            // Actualizar petición como cancelada
-            const cancelData = ultimoMensaje.payload;
-            setPeticiones((prev) =>
-              prev.map((r) =>
-                r.id === cancelData.id
-                  ? {
-                      ...r,
-                      estado: "cancelled",
-                      cancelledBy: cancelData.cancelledBy,
-                      cancelledByName: cancelData.cancelledByName,
-                      cancelledAt: cancelData.cancelledAt,
-                    }
-                  : r,
-              ),
-            );
-            break;
-          case "RATE_REQUEST":
-            // Actualizar petición con calificación
-            const rateData = ultimoMensaje.payload;
-            setPeticiones((prev) =>
-              prev.map((r) =>
-                r.id === rateData.id
-                  ? {
-                      ...r,
-                      rating: rateData.rating,
-                      ratedAt: rateData.ratedAt,
-                    }
-                  : r,
-              ),
-            );
-            break;
-          case "CONFIG_UPDATED":
-            break;
-          default:
-        }
-      } catch (error) {
-        
-      }
-    }
-  }, [ultimoMensaje]);
 
   // Estadísticas
   const contadorPendientes = peticionesFiltradas.filter(
@@ -669,6 +621,7 @@ function Home() {
                       onActualizarEstado={manejarActualizarEstado}
                       onCancelar={manejarCancelarPeticion}
                       onEditarTransporte={abrirModalTransporte}
+                      onPublicarPropuestas={abrirPropuestas}
                     />
                   ))
                 )}
@@ -934,7 +887,7 @@ function Home() {
         onCancel={cerrarModalCancelacion}
       />
       <TransportResponseModal
-        open={showTransportModal}
+        open={showTransportModal && !(inferTransportKind(peticionSeleccionadaParaTransporte?.details, peticionSeleccionadaParaTransporte?.mensaje) === 'taxi' && peticionSeleccionadaParaTransporte?.details?.transportProposals)}
         isTaxi={
           inferTransportKind(
             peticionSeleccionadaParaTransporte?.details,
@@ -942,10 +895,34 @@ function Home() {
           ) === "taxi"
         }
         loading={isTransportSaving}
+        error={transportError}
         initialValue={getTransportResponse(peticionSeleccionadaParaTransporte?.details)}
         onClose={cerrarModalTransporte}
         onSave={guardarRespuestaTransporte}
       />
+      {(proposalMode || (showTransportModal && peticionSeleccionadaParaTransporte?.details?.transportProposals)) && peticionSeleccionadaParaTransporte && (
+        <TransportProposalModal
+          key={`${transportRequestId}-${proposalMode}-${peticionSeleccionadaParaTransporte.details?.transportProposals?.revision}-${peticionSeleccionadaParaTransporte.details?.transportAcceptance?.revision}-${peticionSeleccionadaParaTransporte.details?.transportAcceptance?.optionId}`}
+          mode={proposalMode || 'assign'}
+          details={peticionSeleccionadaParaTransporte.details || {}}
+          active={peticionSeleccionadaParaTransporte.details?.serviceType === 'taxi' && ['pending', 'in-progress'].includes(peticionSeleccionadaParaTransporte.estado)}
+          connected={estaConectado}
+          loading={isTransportSaving}
+          error={transportError}
+          onClose={cerrarModalTransporte}
+          onPublish={(options: TransportOption[]) => {
+            const request = peticionSeleccionadaParaTransporte;
+            if (!['pending', 'in-progress'].includes(request.estado) || request.details?.serviceType !== 'taxi' || !validOptions(options, request.details?.passengerCount)) return;
+            sendTransport('PUBLISH_TRANSPORT_OPTIONS', { id: request.id, options });
+          }}
+          onAssign={(revision, vehicles) => {
+            const request = peticionSeleccionadaParaTransporte;
+            const accepted = currentAcceptance(request.details);
+            if (!['pending', 'in-progress'].includes(request.estado) || request.details?.serviceType !== 'taxi' || !accepted || revision !== accepted.revision || !validVehicles(vehicles, accepted.option.vehicleCount)) return;
+            sendTransport('ASSIGN_TRANSPORT_VEHICLES', { id: request.id, revision, vehicles });
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -994,6 +971,7 @@ interface PropsTarjetaPeticion {
   ) => void;
   onCancelar: (id: string) => void;
   onEditarTransporte: (peticion: Peticion) => void;
+  onPublicarPropuestas: (peticion: Peticion) => void;
 }
 
 function TarjetaPeticion({
@@ -1001,12 +979,16 @@ function TarjetaPeticion({
   onActualizarEstado,
   onCancelar,
   onEditarTransporte,
+  onPublicarPropuestas,
 }: PropsTarjetaPeticion) {
   const transportKind = inferTransportKind(peticion.details, peticion.mensaje);
   const isTaxi = transportKind === "taxi";
   const isTransportRequest = transportKind === "taxi" || transportKind === "valet";
   const taxiDetails = isTaxi && isObjectRecord(peticion.details) ? peticion.details : null;
   const transportResponse = getTransportResponse(peticion.details);
+  const proposals = isTaxi ? peticion.details?.transportProposals : null;
+  const acceptance = isTaxi ? currentAcceptance(peticion.details) : null;
+  const activeTransport = ['pending', 'in-progress'].includes(peticion.estado);
   const taxiCategoryLabels: Record<string, string> = {
     tourist: "Tourist destinations",
     hospitals: "Nearby hospitals",
@@ -1159,7 +1141,19 @@ function TarjetaPeticion({
         </div>
       )}
 
-      {transportResponse && isTransportRequest && (
+      {proposals && (
+        <div className="rounded-lg p-3 mb-3 border border-auto bg-auto-tertiary/50 text-sm text-auto-secondary space-y-2">
+          <strong>Transport options · Revision {proposals.revision}</strong>
+          <p>{transportAcceptanceStatus(peticion.details)}</p>
+          {proposals.options.map((option: TransportOption, index: number) => <p key={option.id || index}>
+            {acceptance?.optionId === option.id ? 'Selected: ' : ''}{option.vehicleCount} {option.vehicleType} · {option.totalCapacity} seats · {formatTransportPrice(option.priceCents)}
+            {option.description && <span className="block text-xs mt-1">{option.description}</span>}
+          </p>)}
+          {acceptance && <p className="font-semibold">Accepted total (locked): {formatTransportPrice(acceptance.option.priceCents)}</p>}
+        </div>
+      )}
+
+      {transportResponse && isTransportRequest && (!proposals || acceptance) && (
         <div className="bg-green-50/70 dark:bg-green-900/10 rounded-lg p-3 mb-3 border border-green-200 dark:border-green-800">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-green-700 dark:text-green-400">
@@ -1177,15 +1171,20 @@ function TarjetaPeticion({
             )}
           </div>
           <div className="grid grid-cols-2 gap-2 text-xs text-auto-secondary">
+            {transportResponse.vehicles?.map((vehicle, index) => <span key={index} className="col-span-2">
+              <strong>Vehicle {index + 1}:</strong> {vehicle.vehiclePlate} · {vehicle.vehicleModel}{vehicle.vehicleColor ? ` · ${vehicle.vehicleColor}` : ''}
+            </span>)}
+            {!transportResponse.vehicles?.length && <>
             <span>
               <strong>Plates:</strong> {transportResponse.vehiclePlate}
             </span>
             <span>
               <strong>Model:</strong> {transportResponse.vehicleModel}
             </span>
+            </>}
             {isTaxi && transportResponse.transportCost && (
               <span>
-                <strong>Cost:</strong> {transportResponse.transportCost}
+                <strong>Cost:</strong> {acceptance ? formatTransportPrice(acceptance.option.priceCents) : transportResponse.transportCost}
               </span>
             )}
             {transportResponse.updatedBy && (
@@ -1266,13 +1265,20 @@ function TarjetaPeticion({
         </span>
       </div>
 
-      {isTransportRequest && peticion.estado !== "cancelled" && (
+      {isTaxi && taxiDetails?.serviceType === 'taxi' && activeTransport && (
+        <button onClick={() => onPublicarPropuestas(peticion)} disabled={!validPassengerCount(taxiDetails?.passengerCount)}
+          title="Requires a passenger count from 1 to 6"
+          className="w-full mb-3 px-3 py-2 rounded-lg text-xs font-semibold bg-green-600 text-white disabled:opacity-50">
+          {proposals ? 'Revise transport options' : 'Publish transport options'}
+        </button>
+      )}
+      {isTransportRequest && peticion.estado !== "cancelled" && (!proposals || (activeTransport && acceptance)) && (
         <button
           onClick={() => onEditarTransporte(peticion)}
           className="w-full mb-3 px-3 py-2 rounded-lg text-xs font-semibold transition-all hover:scale-[1.01] active:scale-95 border border-green-600 text-green-700 hover:bg-green-50 flex items-center justify-center gap-2"
           title="Capture or update transport data"
         >
-          {transportResponse ? "Edit transport details" : "Add transport details"}
+          {proposals ? 'Assign vehicles' : transportResponse ? "Edit transport details" : "Add transport details"}
           <CheckCircleIcon className="w-4 h-4" />
         </button>
       )}
@@ -1356,20 +1362,6 @@ function TarjetaPeticion({
 
             {peticion.estado === "completed" && (
               <>
-                {/* Retroceder a En Progreso */}
-                <button
-                  onClick={() => onActualizarEstado(peticion.id, "in-progress")}
-                  className="flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all hover:scale-[1.02] active:scale-95 border flex items-center justify-center gap-1"
-                  style={{
-                    backgroundColor: "transparent",
-                    borderColor: "var(--hotel-secondary)",
-                    color: "var(--hotel-secondary)",
-                  }}
-                  title="Move back to in progress"
-                >
-                  <ArrowLeftIcon className="w-3 h-3" /> Reopen
-                </button>
-
                 <div
                   className="flex-1 px-3 py-2 rounded-lg text-xs font-semibold text-center flex items-center justify-center gap-1.5"
                   style={{

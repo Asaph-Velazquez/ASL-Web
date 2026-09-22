@@ -11,6 +11,7 @@ interface TransportResponseModalProps {
   open: boolean;
   isTaxi: boolean;
   loading?: boolean;
+  error?: string;
   initialValue?: Partial<TransportResponseFormValue> | null;
   onClose: () => void;
   onSave: (value: TransportResponseFormValue) => void | Promise<void>;
@@ -26,6 +27,7 @@ export default function TransportResponseModal({
   open,
   isTaxi,
   loading = false,
+  error,
   initialValue,
   onClose,
   onSave,
@@ -79,6 +81,7 @@ export default function TransportResponseModal({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
           <div>
             <label className="block text-xs font-semibold text-auto-secondary mb-2">
               Plates
