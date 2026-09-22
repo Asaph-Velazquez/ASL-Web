@@ -311,15 +311,14 @@ router.post('/internal/interpreter-reports', async (req, res) => {
             priority,
             status: 'pending',
             timestamp: requestTimestamp,
-            details: {
-              reportId,
-              callId,
-              category,
-              interpreterNotes: notes,
-              interpreterId,
-              interpreterName,
-            },
+            'details.reportId': reportId,
+            'details.callId': callId,
+            'details.category': category,
+            'details.interpreterNotes': notes,
+            'details.interpreterId': interpreterId,
+            'details.interpreterName': interpreterName,
           },
+          $inc: { mutationVersion: 1 },
           $setOnInsert: {
             history: buildInitialRequestHistory(note),
           },
@@ -342,6 +341,7 @@ router.post('/internal/interpreter-reports', async (req, res) => {
             cancelledByName: 'Interpreter bridge',
             cancelledAt: submittedAt,
           },
+          $inc: { mutationVersion: 1 },
           $push: {
             history: {
               eventType: 'CANCEL_REQUEST',

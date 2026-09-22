@@ -247,7 +247,9 @@ export const schemas = {
 
   // Mensaje WebSocket
   wsMessage: z.object({
-    type: z.enum(['NEW_REQUEST', 'UPDATE_REQUEST', 'CANCEL_REQUEST', 'RATE_REQUEST']),
+    type: z.enum(['NEW_REQUEST', 'UPDATE_REQUEST', 'CANCEL_REQUEST', 'RATE_REQUEST',
+      'PUBLISH_TRANSPORT_OPTIONS', 'ACCEPT_TRANSPORT_OPTION', 'ASSIGN_TRANSPORT_VEHICLES']),
+    operationId: z.string().min(1).max(100).optional(),
     payload: z.record(z.unknown())
   })
 };
@@ -279,6 +281,7 @@ export function validateBody(schema) {
 // =============================================================
 
 export function sanitizeWSMessage(data) {
+  if (Array.isArray(data)) return data.map(sanitizeWSMessage);
   if (typeof data === 'string') {
     return data.replace(/[<>]/g, '').substring(0, 5000);
   }
@@ -286,11 +289,8 @@ export function sanitizeWSMessage(data) {
   if (typeof data === 'object' && data !== null) {
     const sanitized = {};
     for (const [key, value] of Object.entries(data)) {
-      if (typeof value === 'string') {
-        sanitized[key] = value.replace(/[<>]/g, '').substring(0, 1000);
-      } else {
-        sanitized[key] = value;
-      }
+      if (['__proto__', 'constructor', 'prototype'].includes(key) || key.startsWith('$') || key.includes('.')) continue;
+      sanitized[key] = sanitizeWSMessage(value);
     }
     return sanitized;
   }

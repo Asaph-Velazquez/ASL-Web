@@ -4,7 +4,8 @@ const requestHistorySchema = new mongoose.Schema(
   {
     eventType: {
       type: String,
-      enum: ['NEW_REQUEST', 'UPDATE_REQUEST', 'CANCEL_REQUEST', 'RATE_REQUEST'],
+      enum: ['NEW_REQUEST', 'UPDATE_REQUEST', 'CANCEL_REQUEST', 'RATE_REQUEST',
+        'PUBLISH_TRANSPORT_OPTIONS', 'ACCEPT_TRANSPORT_OPTION', 'ASSIGN_TRANSPORT_VEHICLES'],
       required: true,
     },
     status: {
@@ -43,6 +44,8 @@ const requestHistorySchema = new mongoose.Schema(
 
 const requestSchema = new mongoose.Schema(
   {
+    mutationVersion: { type: Number, default: 0 },
+    creationFingerprint: { type: String, immutable: true },
     requestId: {
       type: String,
       required: true,

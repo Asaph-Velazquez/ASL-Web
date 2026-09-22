@@ -15,6 +15,9 @@ import staffRoutes from './routes/staff.js';
 import statsRoutes from './routes/stats.js';
 import { Stay } from './models/index.js';
 import { processStayTransitions } from './services/stayLifecycle.js';
+import { handleTransportMessage, requestUpdateMessage } from './services/transport.js';
+import { broadcastRequest, publicRequest } from './services/requestBroadcast.js';
+import { initializeSocket } from './services/socketInitialization.js';
 import {
   listRequestsForSocket,
   persistNewRequest,
@@ -224,6 +227,10 @@ function difundir(mensaje) {
   });
 }
 
+function difundirRequest(message, request) {
+  broadcastRequest(message, request, clientes, socketMeta);
+}
+
 wss.on('connection', async (ws) => {
   const meta = socketMeta.get(ws);
   if (meta?.roomNumber) {
@@ -259,11 +266,13 @@ wss.on('connection', async (ws) => {
     payload: configuracionApp
   }));
 
+  const loadInitialRequests = async () => {
   try {
     const requests = await listRequestsForSocket(meta);
+    if (ws.readyState !== 1) return;
     ws.send(JSON.stringify({
       type: 'INIT_REQUESTS',
-      payload: { requests },
+      payload: { requests: requests.map(publicRequest) },
     }));
   } catch (error) {
     console.error('❌ Error cargando historial de solicitudes:', error.message);
@@ -275,7 +284,9 @@ wss.on('connection', async (ws) => {
       actorRole: meta?.role || (meta?.isStaff ? 'staff' : 'guest'),
       source: 'websocket',
     });
+    throw error;
   }
+  };
 
   const inactivityTimeout = setTimeout(() => {
     ws.close(1008, 'Inactividad prolongada');
@@ -286,10 +297,11 @@ wss.on('connection', async (ws) => {
     inactivityTimeout.refresh();
   });
 
-  ws.on('message', async (datos) => {
+  initializeSocket(ws, loadInitialRequests, async (datos) => {
     clearTimeout(inactivityTimeout);
     inactivityTimeout.refresh();
 
+    let taxiOperationId = null;
     try {
       const rawData = datos.toString();
       if (rawData.length > 10000) {
@@ -305,7 +317,14 @@ wss.on('connection', async (ws) => {
         return;
       }
 
-      const mensaje = sanitizeWSMessage(JSON.parse(rawData));
+      const parsedMessage = JSON.parse(rawData);
+      if (parsedMessage?.type === 'NEW_REQUEST' && parsedMessage.payload?.details?.serviceType === 'taxi'
+        && typeof parsedMessage.operationId === 'string') {
+        taxiOperationId = parsedMessage.operationId;
+      }
+      if (await handleTransportMessage(parsedMessage, socketMeta.get(ws),
+        message => ws.send(JSON.stringify(message)), difundirRequest)) return;
+      const mensaje = sanitizeWSMessage(parsedMessage);
       console.log('📨 Mensaje recibido:', mensaje.type);
 
       switch (mensaje.type) {
@@ -338,7 +357,7 @@ wss.on('connection', async (ws) => {
             status: mensaje.payload?.status || 'pending',
             timestamp: mensaje.payload?.timestamp || new Date().toISOString(),
           };
-          await persistNewRequest(verifiedPayload, socketDetails);
+          const createdRequest = await persistNewRequest(verifiedPayload, socketDetails);
           logOperationalEvent('requests', 'NEW_REQUEST', {
             stayId: verifiedPayload.stayId,
             roomNumber: verifiedPayload.roomNumber,
@@ -354,7 +373,10 @@ wss.on('connection', async (ws) => {
               status: verifiedPayload.status,
             },
           });
-          difundir({ type: 'NEW_REQUEST', payload: verifiedPayload });
+          difundirRequest({ type: 'NEW_REQUEST', payload: publicRequest(createdRequest) }, createdRequest);
+          if (taxiOperationId !== null) {
+            ws.send(JSON.stringify({ type: 'TRANSPORT_RESULT', payload: { operationId: taxiOperationId, ok: true } }));
+          }
           break;
 
         case 'UPDATE_REQUEST':
@@ -377,6 +399,7 @@ wss.on('connection', async (ws) => {
             id: updatedRequest?.requestId || mensaje.payload?.id || mensaje.payload?.requestId,
             status: updatedRequest?.status || mensaje.payload?.status,
             details: updatedRequest?.details || null,
+            mutationVersion: updatedRequest.mutationVersion,
           };
           logOperationalEvent('requests', 'UPDATE_REQUEST', {
             stayId: updatedRequest?.stayId || meta?.stayId,
@@ -394,22 +417,19 @@ wss.on('connection', async (ws) => {
               transportResponse: updatedRequest?.details?.transportResponse || null,
             },
           });
-          difundir({ type: 'UPDATE_REQUEST', payload: updateBroadcastPayload });
+          difundirRequest({ type: 'UPDATE_REQUEST', payload: updateBroadcastPayload }, updatedRequest);
           break;
 
         case 'CANCEL_REQUEST':
           console.log('🚫 Petición cancelada:', mensaje.payload?.requestId);
           const metaCancel = socketMeta.get(ws);
-          const requestedBy = mensaje.payload?.requestedBy;
-          const cancelledBy = (requestedBy === 'staff' || requestedBy === 'guest')
-            ? requestedBy
-            : (metaCancel?.isStaff ? 'staff' : 'guest');
+          const cancelledBy = metaCancel?.isStaff ? 'staff' : 'guest';
           const cancelPayload = {
             ...mensaje.payload,
             cancelledBy,
             cancelledByName: cancelledBy === 'staff'
-              ? (mensaje.payload?.cancelledByName || 'Personal del Hotel')
-              : (metaCancel?.guestName || mensaje.payload?.guestName || 'Guest'),
+              ? (metaCancel?.username || 'Staff')
+              : (metaCancel?.guestName || 'Guest'),
             cancelledAt: new Date().toISOString(),
             status: 'cancelled'
           };
@@ -427,7 +447,7 @@ wss.on('connection', async (ws) => {
               cancelledAt: cancelPayload.cancelledAt,
             },
           });
-          difundir({ type: 'CANCEL_REQUEST', payload: cancelPayload });
+          difundirRequest({ type: 'CANCEL_REQUEST', payload: publicRequest(cancelledRequest) }, cancelledRequest);
           break;
 
         case 'RATE_REQUEST':
@@ -451,7 +471,7 @@ wss.on('connection', async (ws) => {
               ratedAt: ratePayload.ratedAt,
             },
           });
-          difundir({ type: 'RATE_REQUEST', payload: ratePayload });
+          difundirRequest({ type: 'RATE_REQUEST', payload: publicRequest(ratedRequest) }, ratedRequest);
           break;
 
         default:
@@ -467,7 +487,12 @@ wss.on('connection', async (ws) => {
         actorRole: meta?.role || (meta?.isStaff ? 'staff' : 'guest'),
         source: 'websocket',
       });
-      ws.send(JSON.stringify({ error: 'Invalid message format' }));
+      if (error.current) ws.send(JSON.stringify(requestUpdateMessage(error.current)));
+      if (taxiOperationId !== null) {
+        ws.send(JSON.stringify({ type: 'TRANSPORT_RESULT', payload: { operationId: taxiOperationId, ok: false, error: error.message } }));
+      } else {
+        ws.send(JSON.stringify({ error: 'Invalid message format' }));
+      }
     }
   });
 
