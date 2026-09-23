@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { BsBuildingsFill } from 'react-icons/bs';
 import { getApiOrigin } from '../utils/env';
 
-function Login() {
+function Login({ onAuthenticated }: { onAuthenticated: () => void }) {
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -35,10 +35,11 @@ function Login() {
       const data = await response.json();
       localStorage.setItem('staff_token', data.token);
       localStorage.setItem('staff_username', data.username || username);
+      onAuthenticated();
       
       // Navegar al panel
       navigate('/');
-    } catch (err) {
+    } catch {
       setError('Login failed. Please check your connection.');
     } finally {
       setLoading(false);
@@ -129,9 +130,6 @@ function Login() {
           </form>
 
           {/* Pie */}
-          <p className="text-xs text-center mt-6" style={{ color: 'var(--text-tertiary)' }}>
-            Default credentials: admin / hotel2026
-          </p>
           <p className="text-xs text-center mt-2" style={{ color: 'var(--text-tertiary)' }}>
             Need an account?{' '}
             <button

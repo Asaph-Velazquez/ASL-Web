@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 // Interfaces
 interface MensajeWebSocket {
   type: string;
-  payload: any;
+  payload: unknown;
   operationId?: string;
 }
 
@@ -19,12 +19,12 @@ export function useWebSocket(url: string, token?: string | null, onMessage?: (me
   const [estaConectado, setEstaConectado] = useState(false);
   const [ultimoMensaje, setUltimoMensaje] = useState<MensajeWebSocket | null>(null);
   const refWs = useRef<WebSocket | null>(null);
-  const refTimeoutReconexion = useRef<number | undefined>(undefined);
-  const refIntentosReconexion = useRef(0);
-  const maxIntentosReconexion = 5;
-
-  // Conexión WebSocket
-  const conectar = useCallback(() => {
+  useEffect(() => {
+    let disposed = false;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let attempts = 0;
+    const conectar = () => {
+    if (disposed) return;
     try {
       const wsUrl = token
         ? `${url}${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`
@@ -32,41 +32,52 @@ export function useWebSocket(url: string, token?: string | null, onMessage?: (me
       const ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
+        if (disposed) return;
         setEstaConectado(true);
-        refIntentosReconexion.current = 0;
+        attempts = 0;
       };
 
       ws.onmessage = (evento) => {
+        if (disposed) return;
         try {
           const mensaje = JSON.parse(evento.data);
+          if (!mensaje || typeof mensaje.type !== 'string') return;
           messageListener.current?.(mensaje);
           setUltimoMensaje(mensaje);
         } catch {
+          // Ignore malformed frames; only valid messages update application state.
+          return;
         }
       };
 
-      ws.onerror = () => {
-      };
-
       ws.onclose = () => {
+        if (disposed) return;
         setEstaConectado(false);
         refWs.current = null;
 
         // Reconexión automática
-        if (refIntentosReconexion.current < maxIntentosReconexion) {
-          const timeout = Math.min(1000 * Math.pow(2, refIntentosReconexion.current), 30000);
+        if (attempts < 5) {
+          const timeout = Math.min(1000 * Math.pow(2, attempts), 30000);
           
-          refTimeoutReconexion.current = setTimeout(() => {
-            refIntentosReconexion.current++;
+          retryTimer = setTimeout(() => {
+            attempts++;
             conectar();
           }, timeout);
-        } else {
         }
       };
 
       refWs.current = ws;
     } catch {
+      setEstaConectado(false);
     }
+    };
+    conectar();
+    return () => {
+      disposed = true;
+      clearTimeout(retryTimer);
+      refWs.current?.close();
+      refWs.current = null;
+    };
   }, [url, token]);
 
   const enviarMensaje = useCallback((mensaje: MensajeWebSocket) => {
@@ -77,23 +88,9 @@ export function useWebSocket(url: string, token?: string | null, onMessage?: (me
       } catch {
         return false;
       }
-    } else {
     }
     return false;
   }, []);
-
-  useEffect(() => {
-    conectar();
-
-    return () => {
-      if (refTimeoutReconexion.current) {
-        clearTimeout(refTimeoutReconexion.current);
-      }
-      if (refWs.current) {
-        refWs.current.close();
-      }
-    };
-  }, [conectar]);
 
   return { estaConectado, enviarMensaje, ultimoMensaje };
 }

@@ -223,8 +223,13 @@ export async function persistRequestRating(payload, meta = {}) {
     throw new Error('RATE_REQUEST missing payload.id');
   }
 
-  return Request.findOneAndUpdate(
-    { requestId },
+  if (meta.isStaff || !meta.stayId) throw new Error('Only the owning guest can rate a request');
+  if (!Number.isInteger(payload.rating) || payload.rating < 1 || payload.rating > 5) {
+    throw new Error('Rating must be an integer between 1 and 5');
+  }
+
+  const updated = await Request.findOneAndUpdate(
+    { requestId, stayId: meta.stayId, status: 'completed' },
     {
       $set: {
         rating: payload.rating,
@@ -243,8 +248,10 @@ export async function persistRequestRating(payload, meta = {}) {
         }),
       },
     },
-    { new: true }
+    { new: true, runValidators: true }
   ).lean();
+  if (!updated) throw new Error('Request cannot be rated');
+  return updated;
 }
 
 export async function listRequestsForSocket(meta = {}) {

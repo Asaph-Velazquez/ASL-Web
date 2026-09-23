@@ -49,6 +49,9 @@ export function validPassengerCount(count: unknown): count is number {
   return typeof count === 'number' && Number.isInteger(count) && count >= 1 && count <= 6;
 }
 
+const hasSafeCharacters = (value: string) => [...value].every(character =>
+  character.charCodeAt(0) >= 32 && character !== '<' && character !== '>');
+
 export function validOptions(options: TransportOption[], passengers: unknown) {
   return validPassengerCount(passengers) && options.length > 0 && options.length <= 20 && options.every(option =>
     ['car', 'van', 'bus'].includes(option.vehicleType) &&
@@ -58,7 +61,7 @@ export function validOptions(options: TransportOption[], passengers: unknown) {
     Number.isSafeInteger(option.priceCents) && option.priceCents >= 0 &&
     (option.description === undefined || (typeof option.description === 'string' &&
       option.description.trim().length > 0 && option.description.trim().length <= 240 &&
-      /^[^<>\x00-\x1f]+$/.test(option.description.trim()))));
+      hasSafeCharacters(option.description.trim()))));
 }
 
 export function parseTransportPrice(price: string): number {
@@ -69,7 +72,7 @@ export function parseTransportPrice(price: string): number {
 }
 
 const validLabel = (value: string) => value.trim().length > 0 && value.trim().length <= 100 &&
-  /^[^<>\x00-\x1f]+$/.test(value.trim());
+  hasSafeCharacters(value.trim());
 
 export function validVehicles(vehicles: TransportVehicle[], count: number): boolean {
   return Number.isSafeInteger(count) && count > 0 && count <= 100 && vehicles.length === count &&

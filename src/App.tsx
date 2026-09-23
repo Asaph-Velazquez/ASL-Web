@@ -11,27 +11,22 @@ import LogsManagement from './components/LogsManagement';
 import InterpreterReports from './components/InterpreterReports';
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => !!localStorage.getItem('staff_token'));
 
   useEffect(() => {
-    const token = localStorage.getItem('staff_token');
-    setIsAuthenticated(!!token);
-    setIsLoading(false);
+    const syncSession = () => setIsAuthenticated(!!localStorage.getItem('staff_token'));
+    window.addEventListener('storage', syncSession);
+    return () => window.removeEventListener('storage', syncSession);
   }, []);
-
-  if (isLoading) {
-    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
-  }
 
   return (
     <div>
       <Routes>
-        <Route path="/login" element={<Login />} />
+        <Route path="/login" element={isAuthenticated ? <Navigate to="/" replace /> : <Login onAuthenticated={() => setIsAuthenticated(true)} />} />
         <Route path="/register" element={<Register />} />
         {isAuthenticated ? (
           <>
-            <Route path="/" element={<Home />} />
+            <Route path="/" element={<Home onLogout={() => setIsAuthenticated(false)} />} />
             <Route path="/stays" element={<StayManagement />} />
             <Route path="/statistics" element={<Statistics />} />
             <Route path="/logs" element={<LogsManagement />} />

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BsArrowLeft, BsArrowRepeat, BsDownload, BsJournalText, BsListUl, BsCodeSlash, BsXLg } from 'react-icons/bs';
 import { getApiBase } from '../utils/env';
@@ -298,7 +298,7 @@ function LogsManagement() {
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
 
-  const loadStays = async (preserveSelection = true) => {
+  const loadStays = useCallback(async (preserveSelection = true) => {
     try {
       setLoading(true);
       setError('');
@@ -315,20 +315,21 @@ function LogsManagement() {
       const payload = await response.json();
       setStays(payload.stays || []);
 
-      if (preserveSelection && selectedStay) {
-        const refreshedSelection = (payload.stays || []).find((item: StayLogSummary) => item.groupKey === selectedStay.groupKey) || null;
-        setSelectedStay(refreshedSelection);
+      if (preserveSelection) {
+        setSelectedStay(current => current
+          ? (payload.stays || []).find((item: StayLogSummary) => item.groupKey === current.groupKey) || null
+          : null);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudieron cargar los logs');
     } finally {
       setLoading(false);
     }
-  };
+  }, [search, start, end]);
 
   useEffect(() => {
     loadStays();
-  }, []);
+  }, [loadStays]);
 
   const handleSearch = async () => {
     setSelectedStay(null);
@@ -338,7 +339,7 @@ function LogsManagement() {
     await loadStays(false);
   };
 
-  const loadStayDetails = async (stay: StayLogSummary) => {
+  const loadStayDetails = useCallback(async (stay: StayLogSummary) => {
     try {
       setLoadingStayKey(stay.groupKey);
       const query = buildQuery(search, start, end);
@@ -371,7 +372,7 @@ function LogsManagement() {
     } finally {
       setLoadingStayKey(null);
     }
-  };
+  }, [search, start, end]);
 
   const handleOpenStay = async (stay: StayLogSummary) => {
     setSelectedStay(stay);
@@ -430,7 +431,7 @@ function LogsManagement() {
     }, AUTO_REFRESH_MS);
 
     return () => window.clearInterval(intervalId);
-  }, [search, start, end, selectedStay]);
+  }, [loadStays]);
 
   useEffect(() => {
     if (!selectedStay) {
@@ -442,7 +443,7 @@ function LogsManagement() {
     }, AUTO_REFRESH_MS);
 
     return () => window.clearInterval(intervalId);
-  }, [selectedStay, search, start, end]);
+  }, [selectedStay, loadStayDetails]);
 
   return (
     <div className="min-h-screen bg-auto-primary">

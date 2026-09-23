@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BsArrowLeft, BsPersonBadge, BsPlusLg, BsTrash, BsPencilSquare, BsXLg } from 'react-icons/bs';
 import { getApiOrigin } from '../utils/env';
@@ -95,13 +95,13 @@ function StaffManagement() {
     }, 3200);
   };
 
-  const getAuthHeaders = (withJson = false) => {
+  const getAuthHeaders = useCallback((withJson = false) => {
     const token = localStorage.getItem('staff_token');
     return {
       ...(withJson ? { 'Content-Type': 'application/json' } : {}),
       ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
     };
-  };
+  }, []);
 
   const resetRegisterForm = () => setRegisterForm(INITIAL_REGISTER_FORM);
 
@@ -114,11 +114,7 @@ function StaffManagement() {
     setRegisterForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  useEffect(() => {
-    fetchStaffList();
-  }, []);
-
-  const fetchStaffList = async () => {
+  const fetchStaffList = useCallback(async () => {
     try {
       const response = await fetch(`${API_BASE}/api/staff/list`, {
         headers: getAuthHeaders(),
@@ -131,11 +127,15 @@ function StaffManagement() {
       const data = await response.json();
       setStaffList(data.users || []);
       setLoading(false);
-    } catch (err) {
+    } catch {
       setError('Error loading the staff list');
       setLoading(false);
     }
-  };
+  }, [getAuthHeaders]);
+
+  useEffect(() => {
+    void fetchStaffList();
+  }, [fetchStaffList]);
 
   const startEditingUser = (user: StaffUser) => {
     setEditingUser(user._id);
@@ -184,8 +184,8 @@ function StaffManagement() {
       );
       cancelEditingUser();
       showNotification('User updated successfully', 'success');
-    } catch (err: any) {
-      showNotification(err.message || 'Error updating the user', 'error');
+    } catch (err) {
+      showNotification(err instanceof Error ? err.message : 'Error updating the user', 'error');
     }
   };
 
@@ -207,7 +207,7 @@ function StaffManagement() {
       // Actualizar la lista localmente
       setStaffList(prev => prev.filter(user => user._id !== userId));
       showNotification('User deleted successfully', 'success');
-    } catch (err) {
+    } catch {
       showNotification('Error deleting the user', 'error');
     }
   };
@@ -253,8 +253,8 @@ function StaffManagement() {
       
       // Recargar la lista
       fetchStaffList();
-    } catch (err: any) {
-      showNotification(err.message || 'Error registering user', 'error');
+    } catch (err) {
+      showNotification(err instanceof Error ? err.message : 'Error registering user', 'error');
     }
   };
 

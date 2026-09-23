@@ -62,7 +62,7 @@ function Register() {
       // Registro exitoso, redirigir a login
       alert('User registered successfully');
       navigate('/login');
-    } catch (err) {
+    } catch {
       setError('Unable to connect to the server. Check your connection.');
     } finally {
       setLoading(false);

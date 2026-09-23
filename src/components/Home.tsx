@@ -33,7 +33,7 @@ import TransportResponseModal from "./modals/TransportResponseModal";
 import type { TransportResponseFormValue } from "./modals/TransportResponseModal";
 import TransportProposalModal from "./modals/TransportProposalModal";
 import { currentAcceptance, formatTransportPrice, transportAcceptanceStatus, transportResult, validOptions, validPassengerCount, validVehicles } from "../utils/transport";
-import type { TransportOption, TransportVehicle } from "../utils/transport";
+import type { TransportDetails, TransportOption, TransportVehicle } from "../utils/transport";
 import { canonicalRequestId, reduceRequestMessage } from "../utils/requestState";
 import type { RequestRecord } from "../utils/requestState";
 
@@ -76,8 +76,25 @@ interface Peticion {
   cancelledAt?: string;
   rating?: number;
   ratedAt?: string;
-  details?: any;
+  details?: PetitionDetails;
 }
+
+type PetitionDetails = TransportDetails & {
+  serviceType?: string;
+  destinationLabel?: string;
+  destinationCategory?: string;
+  timeMode?: string;
+  scheduledAt?: string;
+  hasLuggage?: boolean;
+  sourceMode?: string;
+  transportResponse?: TransportResponse;
+  category?: string;
+  reportId?: string;
+  interpreterName?: string;
+  callId?: string;
+  interpreterNotes?: string;
+  [key: string]: unknown;
+};
 
 interface Filtros {
   estado: string[];
@@ -96,7 +113,7 @@ interface TransportResponse {
 
 type TransportKind = "taxi" | "valet" | null;
 
-function isObjectRecord(value: unknown): value is Record<string, any> {
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -121,7 +138,19 @@ function getTransportResponse(details: unknown): TransportResponse | null {
     return null;
   }
 
-  return details.transportResponse as TransportResponse;
+  const response = details.transportResponse;
+  if (typeof response.vehiclePlate !== 'string' || typeof response.vehicleModel !== 'string') return null;
+  const vehicles = Array.isArray(response.vehicles) ? response.vehicles.filter((vehicle): vehicle is TransportVehicle =>
+    isObjectRecord(vehicle) && typeof vehicle.vehiclePlate === 'string' && typeof vehicle.vehicleModel === 'string'
+    && (vehicle.vehicleColor === undefined || typeof vehicle.vehicleColor === 'string')) : undefined;
+  return {
+    vehiclePlate: response.vehiclePlate,
+    vehicleModel: response.vehicleModel,
+    vehicles,
+    transportCost: typeof response.transportCost === 'string' ? response.transportCost : undefined,
+    updatedAt: typeof response.updatedAt === 'string' ? response.updatedAt : undefined,
+    updatedBy: typeof response.updatedBy === 'string' ? response.updatedBy : undefined,
+  };
 }
 
 const normalizarTipoPeticion = (
@@ -154,7 +183,7 @@ const normalizarTipoPeticion = (
   return "extra";
 };
 
-function Home() {
+function Home({ onLogout }: { onLogout: () => void }) {
   const navigate = useNavigate();
   const URL_WS = getWsUrl();
   const staffToken = localStorage.getItem("staff_token");
@@ -174,7 +203,7 @@ function Home() {
     cancelledAt: request.cancelledAt,
     rating: request.rating,
     ratedAt: request.ratedAt,
-    details: request.details,
+    details: isObjectRecord(request.details) ? request.details as PetitionDetails : undefined,
   }));
   const [filtros, setFiltros] = useState<Filtros>({
     estado: [],
@@ -197,8 +226,8 @@ function Home() {
     setRequestRecords(current => reduceRequestMessage(current, message));
     const pending = pendingTransport.current;
     if (!pending) return;
-    const result = message.payload;
-    const response = result?.details?.transportResponse;
+    const result = isObjectRecord(message.payload) ? message.payload : null;
+    const response = getTransportResponse(result?.details);
     const legacyConfirmed = pending.legacy && message.type === 'UPDATE_REQUEST' && result && canonicalRequestId(result) === pending.requestId &&
       response?.vehiclePlate === pending.legacy.vehiclePlate && response?.vehicleModel === pending.legacy.vehicleModel &&
       (!pending.legacy.transportCost || response?.transportCost === pending.legacy.transportCost);
@@ -273,6 +302,7 @@ function Home() {
   const handleLogout = () => {
     localStorage.removeItem("staff_token");
     localStorage.removeItem("staff_username");
+    onLogout();
     navigate("/login");
   };
 
@@ -284,7 +314,7 @@ function Home() {
         // Decodificar el JWT para obtener el rol
         const payload = JSON.parse(atob(token.split(".")[1]));
         setUserRole(payload.role || "staff");
-      } catch (error) {
+      } catch {
         setUserRole("staff");
       }
     }
@@ -459,7 +489,7 @@ function Home() {
     <div className="min-h-screen bg-auto-primary">
       <header className="sticky top-0 z-50 backdrop-blur-xl bg-auto-secondary/90 border-b border-auto shadow-sm">
         <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex items-center space-x-4">
               <div
                 className="w-12 h-12 rounded-xl flex items-center justify-center shadow-md transition-all hover:scale-105"
@@ -479,7 +509,7 @@ function Home() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center space-x-3">
+            <div className="flex flex-wrap items-center gap-3">
               {userRole === "admin" && (
                 <button
                   onClick={() => navigate("/admin")}
@@ -1047,7 +1077,7 @@ function TarjetaPeticion({
       if (minutos < 60) return `${minutos} min ago`;
       const horas = Math.floor(minutos / 60);
       return `${horas}h ago`;
-    } catch (error) {
+    } catch {
       return "Invalid date";
     }
   };
@@ -1117,13 +1147,13 @@ function TarjetaPeticion({
               <strong>Destination:</strong> {taxiDetails.destinationLabel}
             </span>
             <span>
-              <strong>Category:</strong> {taxiCategoryLabels[taxiDetails.destinationCategory] || taxiDetails.destinationCategory}
+              <strong>Category:</strong> {taxiCategoryLabels[taxiDetails.destinationCategory || ''] || taxiDetails.destinationCategory}
             </span>
             <span>
               <strong>Time:</strong>{" "}
               {taxiDetails.timeMode === "now"
                 ? "NOW"
-                : new Date(taxiDetails.scheduledAt).toLocaleTimeString("en-US", {
+                : new Date(taxiDetails.scheduledAt || '').toLocaleTimeString("en-US", {
                     hour: "numeric",
                     minute: "2-digit",
                   })}
@@ -1144,7 +1174,7 @@ function TarjetaPeticion({
       {proposals && (
         <div className="rounded-lg p-3 mb-3 border border-auto bg-auto-tertiary/50 text-sm text-auto-secondary space-y-2">
           <strong>Transport options · Revision {proposals.revision}</strong>
-          <p>{transportAcceptanceStatus(peticion.details)}</p>
+          <p>{transportAcceptanceStatus(peticion.details || {})}</p>
           {proposals.options.map((option: TransportOption, index: number) => <p key={option.id || index}>
             {acceptance?.optionId === option.id ? 'Selected: ' : ''}{option.vehicleCount} {option.vehicleType} · {option.totalCapacity} seats · {formatTransportPrice(option.priceCents)}
             {option.description && <span className="block text-xs mt-1">{option.description}</span>}

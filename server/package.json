@@ -17,6 +17,9 @@
   ],
   "author": "",
   "license": "ISC",
+  "overrides": {
+    "qs": "^6.16.0"
+  },
   "dependencies": {
     "argon2": "^0.40.3",
     "cors": "^2.8.5",

@@ -20,8 +20,16 @@ router.post('/register', async (req, res) => {
       }
 
       const token = authHeader.substring(7);
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      if (decoded.role !== 'admin') {
+      let decoded;
+      try {
+        decoded = jwt.verify(token, process.env.JWT_SECRET);
+      } catch (error) {
+        if (['JsonWebTokenError', 'TokenExpiredError', 'NotBeforeError'].includes(error.name)) {
+          return res.status(401).json({ error: 'Invalid or expired admin token' });
+        }
+        throw error;
+      }
+      if (!decoded.userId || decoded.role !== 'admin') {
         return res.status(403).json({ error: 'Access denied. Admin only.' });
       }
     }

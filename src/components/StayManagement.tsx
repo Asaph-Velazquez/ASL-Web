@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   BsCalendar3,
@@ -206,12 +206,12 @@ function StayManagement() {
   });
   const [confirmLoading, setConfirmLoading] = useState(false);
 
-  const showNotification = (message: string, type: NotificationState['type']) => {
+  const showNotification = useCallback((message: string, type: NotificationState['type']) => {
     setNotification({ open: true, message, type });
     setTimeout(() => {
       setNotification((prev) => ({ ...prev, open: false }));
     }, 3200);
-  };
+  }, []);
 
   const openConfirmation = ({
     title,
@@ -254,7 +254,7 @@ function StayManagement() {
     }
   };
 
-  const fetchStays = async () => {
+  const fetchStays = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -274,11 +274,11 @@ function StayManagement() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showNotification]);
 
   useEffect(() => {
     fetchStays();
-  }, []);
+  }, [fetchStays]);
 
   const uniqueRooms = useMemo(() => {
     const rooms = new Set(stays.map((stay) => stay.roomNumber));
