@@ -301,7 +301,7 @@ wss.on('connection', async (ws) => {
     clearTimeout(inactivityTimeout);
     inactivityTimeout.refresh();
 
-    let taxiOperationId = null;
+    let requestOperationId = null;
     try {
       const rawData = datos.toString();
       if (rawData.length > 10000) {
@@ -318,9 +318,8 @@ wss.on('connection', async (ws) => {
       }
 
       const parsedMessage = JSON.parse(rawData);
-      if (parsedMessage?.type === 'NEW_REQUEST' && parsedMessage.payload?.details?.serviceType === 'taxi'
-        && typeof parsedMessage.operationId === 'string') {
-        taxiOperationId = parsedMessage.operationId;
+      if (parsedMessage?.type === 'NEW_REQUEST' && typeof parsedMessage.operationId === 'string') {
+        requestOperationId = parsedMessage.operationId;
       }
       if (await handleTransportMessage(parsedMessage, socketMeta.get(ws),
         message => ws.send(JSON.stringify(message)), difundirRequest)) return;
@@ -374,8 +373,8 @@ wss.on('connection', async (ws) => {
             },
           });
           difundirRequest({ type: 'NEW_REQUEST', payload: publicRequest(createdRequest) }, createdRequest);
-          if (taxiOperationId !== null) {
-            ws.send(JSON.stringify({ type: 'TRANSPORT_RESULT', payload: { operationId: taxiOperationId, ok: true } }));
+          if (requestOperationId !== null) {
+            ws.send(JSON.stringify({ type: 'TRANSPORT_RESULT', payload: { operationId: requestOperationId, ok: true } }));
           }
           break;
 
@@ -488,8 +487,8 @@ wss.on('connection', async (ws) => {
         source: 'websocket',
       });
       if (error.current) ws.send(JSON.stringify(requestUpdateMessage(error.current)));
-      if (taxiOperationId !== null) {
-        ws.send(JSON.stringify({ type: 'TRANSPORT_RESULT', payload: { operationId: taxiOperationId, ok: false, error: error.message } }));
+      if (requestOperationId !== null) {
+        ws.send(JSON.stringify({ type: 'TRANSPORT_RESULT', payload: { operationId: requestOperationId, ok: false, error: error.message } }));
       } else {
         ws.send(JSON.stringify({ error: 'Invalid message format' }));
       }
