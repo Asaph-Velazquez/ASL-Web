@@ -305,7 +305,7 @@ function StaffManagement() {
                   background: "linear-gradient(135deg, var(--hotel-primary), var(--hotel-secondary))",
                 }}
               >
-                <img src={hotelLogo} alt="Hotel logo" className="w-10 h-10 object-contain rounded-lg bg-white p-1" />
+                <img src={hotelLogo} alt="Hotel logo" className="w-10 h-10 object-contain rounded-lg bg-transparent p-1" />
               </div>
               <div>
                 <h1 className="text-xl font-bold text-auto-primary tracking-tight">
