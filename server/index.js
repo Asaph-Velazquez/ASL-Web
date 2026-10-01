@@ -12,6 +12,8 @@ import callsRoutes from './routes/calls.js';
 import logsRoutes from './routes/logs.js';
 import staysRoutes from './routes/stays.js';
 import staffRoutes from './routes/staff.js';
+import internalInterpreters, { requireCallInternalToken } from './routes/internalInterpreters.js';
+import { currentStaffIdentity } from './middleware/auth.js';
 import statsRoutes from './routes/stats.js';
 import { Stay } from './models/index.js';
 import { processStayTransitions } from './services/stayLifecycle.js';
@@ -86,6 +88,9 @@ app.use((req, res, next) => {
   });
 });
 
+// Authenticate before parsing or bypassing the public quota. This route is
+// server-to-server only; never log its request body or return password hashes.
+app.use('/api/internal/interpreters', requireCallInternalToken, express.json({ limit: '2kb' }), internalInterpreters);
 app.use('/api', generalLimiter);
 
 function appendForwardedFor(existingValue, remoteAddress) {
@@ -162,6 +167,7 @@ app.use((req, res, next) => {
   proxyCallHttp(req, res);
 });
 
+app.use('/api/calls/internal/interpreter-reports', express.json({ limit: '64kb' }));
 app.use(express.json({ limit: '10kb' }));
 
 // Conexion a MongoDB
@@ -212,6 +218,22 @@ const wss = new WebSocketServer({ noServer: true });
 // Metadatos del socket: WebSocket -> { roomNumber, guestName, stayId, isStaff }
 const socketMeta = new WeakMap();
 const clientes = new Set();
+let checkingStaff = false;
+setInterval(async () => {
+  if (checkingStaff) return;
+  checkingStaff = true;
+  try {
+    await Promise.all([...clientes].map(async ws => {
+      const meta = socketMeta.get(ws);
+      if (!meta?.isStaff) return;
+      try {
+        if (await currentStaffIdentity(meta)) return;
+      } catch { /* Fail closed if the account cannot be checked. */ }
+      clientes.delete(ws);
+      ws.close(1008, 'Staff access revoked or unavailable');
+    }));
+  } finally { checkingStaff = false; }
+}, 20000).unref();
 let configuracionApp = {
   nombreHotel: 'Canada Central Hotel',
   servicios: []
@@ -230,6 +252,17 @@ function difundir(mensaje) {
 function difundirRequest(message, request) {
   broadcastRequest(message, request, clientes, socketMeta);
 }
+
+app.locals.publishInterpreterFollowUp = request => {
+  difundirRequest({ type: 'NEW_REQUEST', payload: publicRequest(request) }, request);
+};
+app.locals.publishInterpreterReport = report => {
+  for (const client of clientes) {
+    if (client.readyState === 1 && socketMeta.get(client)?.isStaff) {
+      client.send(JSON.stringify({ type: 'INTERPRETER_REPORT_RECEIVED', payload: { reportId: report.reportId } }));
+    }
+  }
+};
 
 wss.on('connection', async (ws) => {
   const meta = socketMeta.get(ws);
@@ -298,6 +331,19 @@ wss.on('connection', async (ws) => {
   });
 
   initializeSocket(ws, loadInitialRequests, async (datos) => {
+    if (meta?.isStaff) {
+      try {
+        if (!await currentStaffIdentity(meta)) {
+          clientes.delete(ws);
+          ws.close(1008, 'Staff access revoked');
+          return;
+        }
+      } catch {
+        clientes.delete(ws);
+        ws.close(1013, 'Account validation unavailable');
+        return;
+      }
+    }
     clearTimeout(inactivityTimeout);
     inactivityTimeout.refresh();
 
@@ -646,18 +692,27 @@ async function handleWebSocketUpgrade(request, socket, head) {
 
     // Token de staff/admin
     if (userId && ['staff', 'admin'].includes(role)) {
+      if (!await currentStaffIdentity(decoded)) {
+        rejectUpgrade(socket, 403, 'Forbidden');
+        return;
+      }
       wss.handleUpgrade(request, socket, head, (ws) => {
         socketMeta.set(ws, {
           isStaff: true,
           userId,
           username,
-          role
+          role,
+          exp: decoded.exp,
         });
         wss.emit('connection', ws, request);
       });
       return;
     }
 
+    if (userId || !stayId) {
+      rejectUpgrade(socket, 403, 'Forbidden');
+      return;
+    }
     // Validar estancia en base de datos
     const stay = await Stay.findOne({ stayId });
     

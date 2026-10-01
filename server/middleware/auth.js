@@ -1,4 +1,14 @@
 import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
+import { StaffUser } from '../models/StaffUser.js';
+
+export async function currentStaffIdentity(decoded) {
+  if (!decoded?.userId || !mongoose.isObjectIdOrHexString(decoded.userId)
+      || !['staff', 'admin'].includes(decoded.role) || (decoded.exp && decoded.exp * 1000 <= Date.now())) return null;
+  const user = await StaffUser.findById(decoded.userId).select('username fullName role').maxTimeMS(4000);
+  if (!user || user.role !== decoded.role) return null;
+  return { ...decoded, username: user.username, fullName: user.fullName, role: user.role };
+}
 
 /**
  * Middleware de verificacion JWT
@@ -36,7 +46,7 @@ export function verifyToken(req, res, next) {
 /**
  * Middleware para autenticar personal (staff/admin) via JWT
  */
-export function verifyStaffToken(req, res, next) {
+export async function verifyStaffToken(req, res, next) {
   try {
     const authHeader = req.headers.authorization;
 
@@ -51,7 +61,9 @@ export function verifyStaffToken(req, res, next) {
       return res.status(403).json({ error: 'Access denied. Staff only.' });
     }
 
-    req.user = decoded;
+    const current = await currentStaffIdentity(decoded);
+    if (!current) return res.status(403).json({ error: 'Staff access revoked' });
+    req.user = current;
     next();
   } catch (error) {
     if (error.name === 'JsonWebTokenError') {

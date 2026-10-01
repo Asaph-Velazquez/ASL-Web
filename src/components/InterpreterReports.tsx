@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BsArrowLeft, BsJournalText } from 'react-icons/bs';
-import { getApiBase } from '../utils/env';
+import { getApiBase, getWsUrl } from '../utils/env';
+import { useWebSocket } from '../hooks/useWebSocket';
 
 const API_BASE = getApiBase();
 
@@ -18,6 +19,7 @@ interface InterpreterReport {
   followUpRequired: boolean;
   requestId?: string | null;
   submittedAt: string;
+  followUpStatus?: string | null;
 }
 
 export default function InterpreterReports() {
@@ -25,10 +27,17 @@ export default function InterpreterReports() {
   const [reports, setReports] = useState<InterpreterReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [revision, setRevision] = useState(0);
+  const token = localStorage.getItem('staff_token');
+  const { estaConectado } = useWebSocket(getWsUrl(), token, message => {
+    if (['INTERPRETER_REPORT_RECEIVED', 'UPDATE_REQUEST', 'CANCEL_REQUEST'].includes(message.type)) setRevision(value => value + 1);
+  });
 
   useEffect(() => {
-    const token = localStorage.getItem('staff_token');
+    const controller = new AbortController();
+    setLoading(true);
     fetch(`${API_BASE}/calls/interpreter-reports`, {
+      signal: controller.signal,
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
       .then(async (response) => {
@@ -37,10 +46,12 @@ export default function InterpreterReports() {
           throw new Error(data.error || 'Unable to load interpreter reports');
         }
         setReports(data.reports || []);
+        setError('');
       })
-      .catch((err) => setError(err instanceof Error ? err.message : 'Unable to load interpreter reports'))
-      .finally(() => setLoading(false));
-  }, []);
+      .catch((err) => { if (!controller.signal.aborted) setError(err instanceof Error ? err.message : 'Unable to load interpreter reports'); })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [revision, token, estaConectado]);
 
   return (
     <div className="min-h-screen bg-auto-primary">
@@ -55,10 +66,14 @@ export default function InterpreterReports() {
               <p className="text-xs text-auto-tertiary">Formal call handoff records for hotel follow-up.</p>
             </div>
           </div>
+          <div className="flex items-center gap-3">
+          <span className="text-xs text-auto-secondary" role="status">{estaConectado ? 'Live updates' : 'Live updates disconnected — refresh to check'}</span>
+          <button disabled={loading} onClick={() => setRevision(value => value + 1)} className="px-3 py-2 rounded-lg border border-auto text-auto-secondary">Refresh</button>
           <button onClick={() => navigate('/')} className="px-3 py-2 rounded-lg text-xs font-semibold border border-auto text-auto-secondary hover:bg-auto-tertiary inline-flex items-center gap-2">
             <BsArrowLeft className="w-4 h-4" />
             Back
           </button>
+          </div>
         </div>
       </header>
 
@@ -76,10 +91,10 @@ export default function InterpreterReports() {
                 </div>
                 <span className="px-2.5 py-1 rounded-md text-xs font-semibold text-white" style={{ backgroundColor: '#0f766e' }}>{report.priority}</span>
               </div>
-              <p className="text-sm text-auto-primary mb-3">{report.summary}</p>
+              <p className="text-sm text-auto-primary mb-3 whitespace-pre-wrap">{report.summary}</p>
               <div className="grid md:grid-cols-4 gap-3 text-xs text-auto-secondary">
                 <span><strong>Category:</strong> {report.category}</span>
-                <span><strong>Follow-up:</strong> {report.followUpRequired ? 'Required' : 'Not required'}</span>
+                <span><strong>Follow-up:</strong> {report.followUpRequired ? report.followUpStatus || 'Pending' : 'Not required'}</span>
                 <span><strong>Call ID:</strong> {report.callId}</span>
                 <span><strong>Request:</strong> {report.requestId || 'No follow-up request'}</span>
               </div>

@@ -2,7 +2,7 @@ import express from 'express';
 import jwt from 'jsonwebtoken';
 import { StaffUser } from '../models/index.js';
 import { loginLimiter, validateBody, schemas } from '../middleware/security.js';
-import { verifyStaffToken, requireAdmin } from '../middleware/auth.js';
+import { verifyStaffToken, requireAdmin, currentStaffIdentity } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -29,12 +29,18 @@ router.post('/register', async (req, res) => {
         }
         throw error;
       }
-      if (!decoded.userId || decoded.role !== 'admin') {
+      if (decoded.role !== 'admin' || !await currentStaffIdentity(decoded)) {
         return res.status(403).json({ error: 'Access denied. Admin only.' });
       }
     }
 
     const { username, password, fullName, role } = req.body;
+    if (role !== undefined && !['staff', 'admin', 'interpreter'].includes(role)) {
+      return res.status(400).json({ error: 'Invalid role' });
+    }
+    if (totalUsers === 0 && role !== 'admin') {
+      return res.status(400).json({ error: 'The initial account must be an administrator' });
+    }
     const normalizedUsername = typeof username === 'string' ? username.trim() : username;
     const normalizedPassword = typeof password === 'string' ? password.trim() : password;
     const normalizedFullName = typeof fullName === 'string' ? fullName.trim() : fullName;
@@ -106,6 +112,10 @@ router.post('/login', loginLimiter, validateBody(schemas.staffLogin), async (req
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
+    if (!['staff', 'admin'].includes(staffUser.role)) {
+      return res.status(403).json({ error: 'Interpreter accounts must sign in to the interpreter app' });
+    }
+
     // Generar token JWT de staff
     const token = jwt.sign(
       {
@@ -160,7 +170,7 @@ router.put('/update-role', async (req, res) => {
       return res.status(400).json({ error: 'userId and role are required' });
     }
 
-    if (!['staff', 'admin'].includes(role)) {
+    if (!['staff', 'admin', 'interpreter'].includes(role)) {
       return res.status(400).json({ error: 'Invalid role' });
     }
 
@@ -168,7 +178,7 @@ router.put('/update-role', async (req, res) => {
     const updatedUser = await StaffUser.findByIdAndUpdate(
       userId,
       { role },
-      { new: true }
+      { new: true, runValidators: true }
     ).select('-password');
 
     if (!updatedUser) {
@@ -210,7 +220,7 @@ router.put('/update/:id', async (req, res) => {
       return res.status(400).json({ error: 'username and fullName cannot be empty' });
     }
 
-    if (!['staff', 'admin'].includes(role)) {
+    if (!['staff', 'admin', 'interpreter'].includes(role)) {
       return res.status(400).json({ error: 'Invalid role' });
     }
 
@@ -227,7 +237,7 @@ router.put('/update/:id', async (req, res) => {
         fullName: normalizedFullName,
         role,
       },
-      { new: true }
+      { new: true, runValidators: true }
     ).select('-password');
 
     if (!updatedUser) {

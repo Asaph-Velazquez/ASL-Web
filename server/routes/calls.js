@@ -37,35 +37,7 @@ function getForwardedHost(req) {
   return req.get('host') || '';
 }
 
-function isPrivateIpv4(hostname) {
-  if (/^10\./.test(hostname) || /^192\.168\./.test(hostname)) {
-    return true;
-  }
-
-  const match = hostname.match(/^172\.(\d{1,3})\./);
-  if (!match) {
-    return false;
-  }
-
-  const secondOctet = Number.parseInt(match[1], 10);
-  return secondOctet >= 16 && secondOctet <= 31;
-}
-
-function isLocalCallHost(hostname) {
-  if (!hostname) {
-    return false;
-  }
-
-  const normalizedHost = hostname.toLowerCase();
-  return normalizedHost === 'localhost'
-    || normalizedHost === '127.0.0.1'
-    || normalizedHost === '::1'
-    || normalizedHost === '[::1]'
-    || normalizedHost.endsWith('.local')
-    || isPrivateIpv4(normalizedHost);
-}
-
-function getCallServerUrl(req) {
+export function getCallServerUrl(req) {
   // Expose a fully public call URL only when the operator provides it explicitly.
   const configuredUrl = normalizeText(process.env.CALL_SERVER_URL, null);
   if (configuredUrl) {
@@ -84,19 +56,12 @@ function getCallServerUrl(req) {
   }
 
   const baseUrl = new URL(`${protocol}://${host}`);
-  if (isLocalCallHost(baseUrl.hostname)) {
-    baseUrl.port = serverPort;
-  } else {
-    baseUrl.port = '';
-  }
+  // Both gateways proxy /calls. Keep the public host AND port instead of
+  // sending LAN guests directly to the private call-server port (3101).
   baseUrl.pathname = normalizedPath;
   baseUrl.search = '';
   baseUrl.hash = '';
   return baseUrl.toString();
-}
-
-function buildRequestId() {
-  return `report-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
 }
 
 function normalizeText(value, fallback = '') {
@@ -245,7 +210,9 @@ router.post('/internal/interpreter-reports', async (req, res) => {
     const notes = normalizeText(req.body?.notes, '');
     const followUpRequired = normalizeBool(req.body?.followUpRequired, true);
 
-    if (!callId || !roomNumber || !interpreterId || !interpreterName || !summary || !category) {
+    if (!callId || !roomNumber || !interpreterId || !interpreterName || !summary || !category
+        || !['low', 'medium', 'high', 'urgent'].includes(priority) || (followUpRequired && !notes)
+        || summary.length > 4000 || category.length > 120 || notes.length > 8000) {
       return res.status(400).json({ error: 'Missing required report fields' });
     }
 
@@ -267,7 +234,7 @@ router.post('/internal/interpreter-reports', async (req, res) => {
     const report = await InterpreterReport.findOneAndUpdate(
       { reportId },
       {
-        $set: {
+        $setOnInsert: {
           callId,
           stayId,
           roomNumber,
@@ -286,40 +253,39 @@ router.post('/internal/interpreter-reports', async (req, res) => {
         upsert: true,
         new: true,
         setDefaultsOnInsert: true,
+        runValidators: true,
       }
     );
 
     let followUpRequest = null;
-    if (followUpRequired) {
+    if (report.followUpRequired) {
       const existingFollowUp = existingReport?.requestId
         ? await Request.findOne({ requestId: existingReport.requestId }).lean()
         : await Request.findOne({ sourceReportId: reportId }).lean();
-      const requestId = existingFollowUp?.requestId || buildRequestId();
-      const requestTimestamp = existingFollowUp?.timestamp || submittedAt;
-      const note = buildFollowUpNote(interpreterName, category);
+      const requestId = existingFollowUp?.requestId || `followup-${reportId}`;
+      const requestTimestamp = existingFollowUp?.timestamp || report.submittedAt;
+      const note = buildFollowUpNote(report.interpreterName, report.category);
       followUpRequest = await Request.findOneAndUpdate(
         { requestId },
         {
-          $set: {
+          $setOnInsert: {
             requestId,
             sourceReportId: reportId,
-            stayId: stayId || null,
-            roomNumber,
-            guestName: resolvedGuestName,
+            stayId: report.stayId || null,
+            roomNumber: report.roomNumber,
+            guestName: report.guestName,
             type: 'interpreter-follow-up',
-            message: summary,
-            priority,
+            message: report.summary,
+            priority: report.priority,
             status: 'pending',
             timestamp: requestTimestamp,
             'details.reportId': reportId,
-            'details.callId': callId,
-            'details.category': category,
-            'details.interpreterNotes': notes,
-            'details.interpreterId': interpreterId,
-            'details.interpreterName': interpreterName,
-          },
-          $inc: { mutationVersion: 1 },
-          $setOnInsert: {
+            'details.callId': report.callId,
+            'details.category': report.category,
+            'details.interpreterNotes': report.notes,
+            'details.interpreterId': report.interpreterId,
+            'details.interpreterName': report.interpreterName,
+            mutationVersion: 1,
             history: buildInitialRequestHistory(note),
           },
         },
@@ -331,33 +297,10 @@ router.post('/internal/interpreter-reports', async (req, res) => {
       ).lean();
 
       await InterpreterReport.updateOne({ _id: report._id }, { $set: { requestId: followUpRequest.requestId } });
-    } else if (existingReport?.requestId) {
-      followUpRequest = await Request.findOneAndUpdate(
-        { requestId: existingReport.requestId },
-        {
-          $set: {
-            status: 'cancelled',
-            cancelledBy: null,
-            cancelledByName: 'Interpreter bridge',
-            cancelledAt: submittedAt,
-          },
-          $inc: { mutationVersion: 1 },
-          $push: {
-            history: {
-              eventType: 'CANCEL_REQUEST',
-              status: 'cancelled',
-              changedBy: 'system',
-              actorName: 'Interpreter bridge',
-              note: 'Follow-up cancelled because the latest interpreter report no longer requires it',
-              timestamp: submittedAt,
-            },
-          },
-        },
-        { new: true }
-      ).lean();
-
-      await InterpreterReport.updateOne({ _id: report._id }, { $set: { requestId: null } });
+      report.requestId = followUpRequest.requestId;
+      req.app.locals.publishInterpreterFollowUp?.(followUpRequest);
     }
+    req.app.locals.publishInterpreterReport?.(report.toObject());
 
     logOperationalEvent('requests', 'INTERPRETER_REPORT_RECEIVED', {
       stayId,
@@ -374,9 +317,9 @@ router.post('/internal/interpreter-reports', async (req, res) => {
         category,
         priority,
         followUpRequired,
-        requestAction: followUpRequired
-          ? (existingReport?.requestId ? 'updated-existing-follow-up' : 'created-follow-up')
-          : (followUpRequest ? 'cancelled-follow-up' : 'report-only'),
+        requestAction: report.followUpRequired
+          ? (existingReport?.requestId ? 'reused-existing-follow-up' : 'created-follow-up')
+          : 'report-only',
       },
     });
 
@@ -400,7 +343,10 @@ router.post('/internal/interpreter-reports', async (req, res) => {
 router.get('/interpreter-reports', verifyStaffToken, async (_req, res) => {
   try {
     const reports = await InterpreterReport.find().sort({ submittedAt: -1 }).limit(200).lean();
-    return res.json({ reports });
+    const requests = await Request.find({ requestId: { $in: reports.map(report => report.requestId).filter(Boolean) } })
+      .select('requestId status').lean();
+    const statuses = new Map(requests.map(request => [request.requestId, request.status]));
+    return res.json({ reports: reports.map(report => ({ ...report, followUpStatus: statuses.get(report.requestId) || null })) });
   } catch (_error) {
     return res.status(500).json({ error: 'Unable to fetch interpreter reports' });
   }

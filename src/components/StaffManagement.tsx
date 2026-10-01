@@ -15,7 +15,7 @@ interface StaffUser {
   _id: string;
   username: string;
   fullName?: string;
-  role: 'staff' | 'admin';
+  role: 'staff' | 'admin' | 'interpreter';
   createdAt: string;
 }
 
@@ -24,13 +24,13 @@ interface RegisterForm {
   password: string;
   confirmPassword: string;
   fullName: string;
-  role: 'staff' | 'admin';
+  role: StaffUser['role'];
 }
 
 interface EditForm {
   username: string;
   fullName: string;
-  role: 'staff' | 'admin';
+  role: StaffUser['role'];
 }
 
 interface NotificationState {
@@ -51,6 +51,7 @@ const INITIAL_REGISTER_FORM: RegisterForm = {
 const ROLE_META: Record<StaffUser['role'], { label: string; badgeClass: string }> = {
   admin: { label: 'Administrator', badgeClass: 'bg-red-500' },
   staff: { label: 'Staff', badgeClass: 'bg-green-500' },
+  interpreter: { label: 'Interpreter', badgeClass: 'bg-teal-700' },
 };
 
 const getApiErrorMessage = async (response: Response, fallback: string) => {
@@ -397,7 +398,7 @@ function StaffManagement() {
                       {editingUser === user._id ? (
                         <select
                           value={editForm.role}
-                          onChange={(e) => setEditForm((prev) => ({ ...prev, role: e.target.value as 'staff' | 'admin' }))}
+                          onChange={(e) => setEditForm((prev) => ({ ...prev, role: e.target.value as StaffUser['role'] }))}
                           className="px-3 py-1 rounded-lg border border-auto bg-auto-tertiary text-xs font-medium text-auto-primary focus:outline-none focus:ring-2"
                           style={{
                             "--tw-ring-color": "var(--hotel-primary)",
@@ -405,6 +406,7 @@ function StaffManagement() {
                         >
                           <option value="staff">Staff</option>
                           <option value="admin">Administrator</option>
+                          <option value="interpreter">Interpreter</option>
                         </select>
                       ) : (
                         <span className={`px-3 py-1 rounded-md text-xs font-semibold text-white ${ROLE_META[user.role].badgeClass}`}>
@@ -480,6 +482,8 @@ function StaffManagement() {
           <p className="text-xs text-blue-700 dark:text-blue-400">
             <strong>Note:</strong> Only administrators can assign the "Administrator" role to other users.
             Users with the "Staff" role have basic system permissions.
+            {' '}Interpreter accounts can only sign in to the interpreter app using their username and password.
+            {' '}Removing this role or deleting the account closes active interpreter sessions and calls within 30 seconds.
           </p>
         </div>
       </div>
@@ -578,12 +582,13 @@ function StaffManagement() {
                 <select
                   id="role"
                   value={registerForm.role}
-                  onChange={(e) => updateRegisterField('role', e.target.value as 'staff' | 'admin')}
+                  onChange={(e) => updateRegisterField('role', e.target.value as StaffUser['role'])}
                   className="w-full px-4 py-2 rounded-lg border border-auto bg-auto-tertiary text-auto-primary focus:outline-none focus:ring-2"
                   style={{ "--tw-ring-color": "var(--hotel-primary)" } as React.CSSProperties}
                 >
                   <option value="staff">Staff</option>
                   <option value="admin">Administrator</option>
+                  <option value="interpreter">Interpreter</option>
                 </select>
               </div>
 
