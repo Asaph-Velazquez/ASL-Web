@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BsArrowLeft, BsPersonBadge, BsPlusLg, BsTrash, BsPencilSquare, BsXLg } from 'react-icons/bs';
+import { BsArrowLeft, BsPlusLg, BsTrash, BsPencilSquare, BsXLg } from 'react-icons/bs';
 import { getApiOrigin } from '../utils/env';
+import hotelLogo from '../../utilities/images/Hotel.png';
 
 // Iconos Bootstrap
-const AdminIcon = ({ className = "w-6 h-6" }) => <BsPersonBadge className={className} />;
 const TrashIcon = ({ className = "w-4 h-4" }) => <BsTrash className={className} />;
 const EditIcon = ({ className = "w-4 h-4" }) => <BsPencilSquare className={className} />;
 const PlusIcon = ({ className = "w-4 h-4" }) => <BsPlusLg className={className} />;
@@ -305,7 +305,7 @@ function StaffManagement() {
                   background: "linear-gradient(135deg, var(--hotel-primary), var(--hotel-secondary))",
                 }}
               >
-                <AdminIcon className="text-white" />
+                <img src={hotelLogo} alt="Hotel logo" className="w-10 h-10 object-contain rounded-lg bg-white p-1" />
               </div>
               <div>
                 <h1 className="text-xl font-bold text-auto-primary tracking-tight">

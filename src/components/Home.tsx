@@ -1,11 +1,11 @@
 import { type CSSProperties, type ReactNode, useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import hotelLogo from "../../utilities/images/Hotel.png";
 import { useWebSocket } from "../hooks/useWebSocket";
 import {
   BsArrowLeft,
   BsArrowRepeat,
   BsBoxArrowRight,
-  BsBuildingsFill,
   BsBarChartLine,
   BsChatDots,
   BsCheckCircle,
@@ -38,7 +38,7 @@ import { canonicalRequestId, reduceRequestMessage } from "../utils/requestState"
 import type { RequestRecord } from "../utils/requestState";
 
 // Componentes de iconos Bootstrap
-const HotelIcon = () => <BsBuildingsFill className="w-10 h-10 text-white" />;
+const HotelIcon = () => <img src={hotelLogo} alt="Hotel logo" className="w-10 h-10 object-contain rounded-lg bg-white p-1" />;
 const InboxIcon = ({ className = "w-6 h-6" }) => <BsInbox className={className} />;
 const BellIcon = ({ className = "w-5 h-5" }) => <LocalTaxiRoundedIcon className={className} />;
 const FoodIcon = ({ className = "w-5 h-5" }) => <RestaurantRoundedIcon className={className} />;

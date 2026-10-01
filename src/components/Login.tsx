@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BsBuildingsFill } from 'react-icons/bs';
 import { getApiOrigin } from '../utils/env';
+import hotelLogo from '../../utilities/images/Hotel.png';
 
 function Login({ onAuthenticated }: { onAuthenticated: () => void }) {
   const navigate = useNavigate();
@@ -59,7 +59,7 @@ function Login({ onAuthenticated }: { onAuthenticated: () => void }) {
                 background: 'linear-gradient(135deg, var(--hotel-primary), var(--hotel-secondary))',
               }}
             >
-              <BsBuildingsFill className="w-8 h-8 text-white" />
+              <img src={hotelLogo} alt="Hotel logo" className="w-12 h-12 object-contain rounded-full bg-white p-1" />
             </div>
             <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>ASL Hotel Panel</h1>
             <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>Staff Login</p>
