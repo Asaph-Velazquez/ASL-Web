@@ -12,6 +12,9 @@ export const protectedTransportFields = [
 const identifier = z.string().trim().min(1).max(100).regex(/^[\w-]+$/);
 const positiveInteger = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
 const label = z.string().trim().min(1).max(100).regex(/^[^<>\x00-\x1f]+$/);
+const vehicleSchema = z.object({
+  vehiclePlate: label, vehicleModel: label, vehicleColor: label.optional(),
+}).strict();
 const optionSchema = z.object({
   id: identifier.optional(),
   vehicleType: z.enum(['car', 'van', 'bus']),
@@ -19,15 +22,14 @@ const optionSchema = z.object({
   totalCapacity: positiveInteger.max(10000),
   priceCents: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
   description: z.string().trim().min(1).max(240).regex(/^[^<>\x00-\x1f]+$/).optional(),
+  vehicles: z.array(vehicleSchema).min(1).max(100),
 }).strict();
 const payloadSchemas = {
   PUBLISH_TRANSPORT_OPTIONS: z.object({ id: identifier, options: z.array(optionSchema).min(1).max(20) }).strict(),
   ACCEPT_TRANSPORT_OPTION: z.object({ id: identifier, revision: positiveInteger, optionId: identifier }).strict(),
   ASSIGN_TRANSPORT_VEHICLES: z.object({
     id: identifier, revision: positiveInteger,
-    vehicles: z.array(z.object({
-      vehiclePlate: label, vehicleModel: label, vehicleColor: label.optional(),
-    }).strict()).min(1).max(100),
+    vehicles: z.array(vehicleSchema).min(1).max(100),
   }).strict(),
 };
 
@@ -75,6 +77,10 @@ export async function persistTransportOperation(operation, input, meta = {}, mod
   if (operation === 'PUBLISH_TRANSPORT_OPTIONS') {
     const options = payload.options.map(option => ({ ...option, id: option.id || randomUUID() }));
     if (new Set(options.map(option => option.id)).size !== options.length) fail('Duplicate option IDs');
+    if (options.some(option => option.vehicles.length !== option.vehicleCount)) fail('Vehicle count must match proposed vehicles');
+    if (options.some(option => new Set(option.vehicles.map(vehicle => vehicle.vehiclePlate.toUpperCase())).size !== option.vehicles.length)) {
+      fail('Duplicate vehicle plates');
+    }
     if (options.some(option => option.totalCapacity < option.vehicleCount
       || option.totalCapacity < (details.passengerCount || 1))) fail('Insufficient total capacity');
     if (publication || details.transportAcceptance || details.transportResponse) {

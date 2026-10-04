@@ -208,6 +208,19 @@ npm run lint       # Ejecutar linter
 
 ## 🔗 Integración
 
+### Opciones de transporte
+
+Al publicar `PUBLISH_TRANSPORT_OPTIONS`, cada opcion incluye `vehicles` con
+exactamente `vehicleCount` entradas. Cada entrada requiere `vehiclePlate` y
+`vehicleModel` (1-100 caracteres); las placas son unicas dentro de la opcion.
+`description` queda disponible para notas adicionales opcionales.
+La app movil muestra placa y modelo antes de que el huesped elija. La aceptacion
+conserva una copia de la opcion y `Assign vehicles` precarga sus vehiculos;
+el staff puede agregar `vehicleColor` opcional y guardar la asignacion.
+Las asignaciones ya guardadas conservan sus valores al volver a abrir el modal.
+Las propuestas antiguas sin `vehicles` siguen siendo aceptables y permiten
+captura manual al asignar; al publicar una nueva revision se requieren los campos.
+
 Este panel web se comunica con:
 - **ASL-MobileApp**: Recibe peticiones en tiempo real vía WebSocket de la aplicación móvil que ya incluye el procesamiento de lenguaje de señas integrado
 - **ASL-CallAPP/server**: Actua como upstream interno para presencia de interpretes, senalizacion y reportes de videollamada cuando el backend web opera como gateway publico unico

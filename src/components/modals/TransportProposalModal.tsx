@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { currentAcceptance, formatTransportPrice, parseTransportPrice, validOptions, validVehicles } from '../../utils/transport';
+import { assignmentVehicles, currentAcceptance, formatTransportPrice, parseTransportPrice, validOptions, validVehicles } from '../../utils/transport';
 import type { TransportDetails, TransportOption, TransportVehicle } from '../../utils/transport';
 
 interface Props {
@@ -14,8 +14,9 @@ interface Props {
   onAssign: (revision: number, vehicles: TransportVehicle[]) => void;
 }
 
-type Draft = { vehicleType: TransportOption['vehicleType']; vehicleCount: string; totalCapacity: string; price: string; description: string };
-const blankOption = (): Draft => ({ vehicleType: 'car', vehicleCount: '1', totalCapacity: '', price: '', description: '' });
+type Draft = { vehicleType: TransportOption['vehicleType']; vehicleCount: string; totalCapacity: string; price: string; description: string; vehicles: TransportVehicle[] };
+const blankVehicle = (): TransportVehicle => ({ vehiclePlate: '', vehicleModel: '' });
+const blankOption = (): Draft => ({ vehicleType: 'car', vehicleCount: '1', totalCapacity: '', price: '', description: '', vehicles: [blankVehicle()] });
 const inputClass = 'w-full px-3 py-2 rounded-lg border border-auto bg-auto-tertiary text-auto-primary';
 
 export default function TransportProposalModal({ mode, details, active, connected, loading, error, onClose, onPublish, onAssign }: Props) {
@@ -24,19 +25,15 @@ export default function TransportProposalModal({ mode, details, active, connecte
     vehicleType: option.vehicleType, vehicleCount: String(option.vehicleCount),
     totalCapacity: String(option.totalCapacity), price: `${Math.floor(option.priceCents / 100)}.${String(option.priceCents % 100).padStart(2, '0')}`,
     description: option.description || '',
+    vehicles: Array.from({ length: option.vehicleCount }, (_, index) => ({ ...blankVehicle(), ...option.vehicles?.[index] })),
   })) || [blankOption()]);
-  const [vehicles, setVehicles] = useState<TransportVehicle[]>(() => Array.from(
-    { length: acceptance?.option.vehicleCount || 0 }, (_, index) => ({
-      vehiclePlate: details.transportResponse?.vehicles?.[index]?.vehiclePlate || '',
-      vehicleModel: details.transportResponse?.vehicles?.[index]?.vehicleModel || '',
-      vehicleColor: details.transportResponse?.vehicles?.[index]?.vehicleColor || '',
-    }),
-  ));
+  const [vehicles, setVehicles] = useState<TransportVehicle[]>(() => assignmentVehicles(details));
   const parsed = options.map(option => ({
     vehicleType: option.vehicleType,
     vehicleCount: /^\d+$/.test(option.vehicleCount) ? Number(option.vehicleCount) : NaN,
     totalCapacity: /^\d+$/.test(option.totalCapacity) ? Number(option.totalCapacity) : NaN,
     priceCents: parseTransportPrice(option.price),
+    vehicles: option.vehicles.map(vehicle => ({ vehiclePlate: vehicle.vehiclePlate.trim(), vehicleModel: vehicle.vehicleModel.trim() })),
     ...(option.description.trim() ? { description: option.description.trim() } : {}),
   }));
   const valid = mode === 'publish' ? validOptions(parsed, details.passengerCount) :
@@ -66,16 +63,32 @@ export default function TransportProposalModal({ mode, details, active, connecte
               <div className="flex justify-between text-auto-primary"><strong>Option {index + 1}</strong><button type="button" disabled={options.length === 1} onClick={() => setOptions(options.filter((_, i) => i !== index))} className="disabled:opacity-40">Remove</button></div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-auto-secondary">
                 <label>Vehicle type<select className={inputClass} value={option.vehicleType} onChange={event => setOptions(options.map((row, i) => i === index ? { ...row, vehicleType: event.target.value as Draft['vehicleType'] } : row))}><option value="car">Car</option><option value="van">Van</option><option value="bus">Bus</option></select></label>
-                {(['vehicleCount', 'totalCapacity', 'price'] as const).map(field => <label key={field}>{field === 'vehicleCount' ? 'Vehicle count' : field === 'totalCapacity' ? 'Total passenger capacity' : 'Total price (MXN)'}<input required className={inputClass} inputMode={field === 'price' ? 'decimal' : 'numeric'} value={option[field]} onChange={event => setOptions(options.map((row, i) => i === index ? { ...row, [field]: event.target.value } : row))} /></label>)}
+                {(['vehicleCount', 'totalCapacity', 'price'] as const).map(field => <label key={field}>{field === 'vehicleCount' ? 'Vehicle count' : field === 'totalCapacity' ? 'Total passenger capacity' : 'Total price (MXN)'}<input required className={inputClass} inputMode={field === 'price' ? 'decimal' : 'numeric'} value={option[field]} onChange={event => {
+                  const value = event.target.value;
+                  const count = Number(value);
+                  setOptions(options.map((row, i) => i === index ? {
+                    ...row, [field]: value,
+                    ...(field === 'vehicleCount' && /^\d+$/.test(value) && count >= 1 && count <= 100
+                      ? { vehicles: Array.from({ length: count }, (_, vehicleIndex) => row.vehicles[vehicleIndex] || blankVehicle()) } : {}),
+                  } : row));
+                }} /></label>)}
               </div>
-              <label className="block text-sm text-auto-secondary">Details for the guest (optional)
+              {option.vehicles.map((vehicle, vehicleIndex) => <fieldset key={vehicleIndex} className="border border-auto rounded-lg p-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-auto-secondary">
+                <legend className="px-1">Vehicle {vehicleIndex + 1} · Details for the guest</legend>
+                {(['vehiclePlate', 'vehicleModel'] as const).map(field => <label key={field}>{field === 'vehiclePlate' ? 'Plate (required)' : 'Model (required)'}
+                  <input required maxLength={100} className={inputClass} value={vehicle[field]} onChange={event => setOptions(options.map((row, i) => i === index ? {
+                    ...row, vehicles: row.vehicles.map((item, j) => j === vehicleIndex ? { ...item, [field]: event.target.value } : item),
+                  } : row))} />
+                </label>)}
+              </fieldset>)}
+              <label className="block text-sm text-auto-secondary">Additional details (optional)
                 <input className={inputClass} maxLength={240} value={option.description}
-                  placeholder="Vehicle model, luggage space, accessibility or amenities"
+                  placeholder="Luggage space, accessibility or amenities"
                   onChange={event => setOptions(options.map((row, i) => i === index ? { ...row, description: event.target.value } : row))} />
               </label>
             </div>)}
             <button type="button" disabled={options.length >= 20} className="w-full border border-dashed border-auto rounded-lg py-3 text-auto-primary font-semibold disabled:opacity-40" onClick={() => setOptions([...options, blankOption()])}>+ Add another option ({options.length}/20)</button>
-            {!valid && <p className="text-sm text-auto-secondary">Use 1-100 vehicles and whole capacity up to 10,000, covering all passengers and at least one seat per vehicle. Enter a nonnegative MXN price with at most two decimals.</p>}
+            {!valid && <p className="text-sm text-auto-secondary">Each vehicle needs a unique plate and model. Use 1-100 vehicles and whole capacity up to 10,000, covering all passengers and at least one seat per vehicle. Enter a nonnegative MXN price with at most two decimals.</p>}
           </> : vehicles.map((vehicle, index) => <div key={index} className="border border-auto rounded-lg p-3 space-y-2 text-auto-secondary">
             <strong>Vehicle {index + 1}</strong>
             {(['vehiclePlate', 'vehicleModel', 'vehicleColor'] as const).map(field => <label key={field} className="block text-sm">{field === 'vehiclePlate' ? 'Plate (unique)' : field === 'vehicleModel' ? 'Model' : 'Color (optional)'}<input className={inputClass} maxLength={100} required={field !== 'vehicleColor'} value={vehicle[field] || ''} onChange={event => setVehicles(vehicles.map((row, i) => i === index ? { ...row, [field]: event.target.value } : row))} /></label>)}

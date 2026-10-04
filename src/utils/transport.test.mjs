@@ -1,8 +1,33 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { currentAcceptance, formatTransportPrice, parseTransportPrice, transportAcceptanceStatus, transportResult, validOptions, validVehicles } from './transport.ts';
+import { assignmentVehicles, currentAcceptance, formatTransportPrice, parseTransportPrice, transportAcceptanceStatus, transportResult, validOptions, validVehicles } from './transport.ts';
 
-const option = { id: 'one', vehicleType: 'van', vehicleCount: 1, totalCapacity: 6, priceCents: 12345 };
+const option = { id: 'one', vehicleType: 'van', vehicleCount: 1, totalCapacity: 6, priceCents: 12345,
+  vehicles: [{ vehiclePlate: 'ABC-123', vehicleModel: 'Hiace' }] };
+
+test('publication needs structured plate/model for every vehicle', () => {
+  for (const vehicles of [undefined, [], [{ vehiclePlate: '', vehicleModel: 'Van' }], [{ vehiclePlate: 'ABC', vehicleModel: ' ' }]]) {
+    assert.equal(validOptions([{ ...option, vehicles }], 2), false);
+  }
+  assert.equal(validOptions([{ ...option, vehicleCount: 2, vehicles: [option.vehicles[0], option.vehicles[0]] }], 2), false);
+});
+
+test('assignment starts from selected option, preserves saved edits, and supports legacy options', () => {
+  const selected = { ...option, id: 'selected', vehicleCount: 2, vehicles: [
+    { vehiclePlate: 'ONE', vehicleModel: 'Sedan' }, { vehiclePlate: 'TWO', vehicleModel: 'Van' },
+  ] };
+  const details = { transportProposals: { revision: 1, options: [option, selected] },
+    transportAcceptance: { revision: 1, optionId: selected.id, option: selected } };
+  assert.deepEqual(assignmentVehicles(details), selected.vehicles.map(vehicle => ({ vehicleColor: '', ...vehicle })));
+  details.transportResponse = { vehicles: [{ vehiclePlate: 'EDIT', vehicleModel: 'Updated', vehicleColor: 'Blue' }] };
+  assert.equal(assignmentVehicles(details)[0].vehiclePlate, 'EDIT');
+  assert.equal(assignmentVehicles(details)[1].vehiclePlate, 'TWO');
+  delete details.transportResponse;
+  delete selected.vehicles;
+  assert.deepEqual(assignmentVehicles(details), Array(2).fill({ vehiclePlate: '', vehicleModel: '', vehicleColor: '' }));
+  details.transportAcceptance.revision = 0;
+  assert.deepEqual(assignmentVehicles(details), []);
+});
 
 test('options cover groups of 1-6 with positive safe integer values', () => {
   for (let passengers = 1; passengers <= 6; passengers++) assert.equal(validOptions([option], passengers), true);

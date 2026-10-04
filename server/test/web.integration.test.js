@@ -177,8 +177,10 @@ test('isolated HTTP, MongoDB and WebSocket integration', { skip: !uri, timeout: 
       destinationCoords: { latitude: 19.4326, longitude: -99.1332 },
       timeMode: 'scheduled', scheduledAt: new Date(Date.now() + 3 * 86400000).toISOString(), passengerCount: 6, hasLuggage: true } };
   const options = [
-    { id: 'cars', vehicleType: 'car', vehicleCount: 2, totalCapacity: 8, priceCents: 12345, description: 'QA two cars' },
-    { id: 'van', vehicleType: 'van', vehicleCount: 1, totalCapacity: 6, priceCents: 18000 },
+    { id: 'cars', vehicleType: 'car', vehicleCount: 2, totalCapacity: 8, priceCents: 12345, description: 'QA two cars',
+      vehicles: [{ vehiclePlate: 'QA-1', vehicleModel: 'Sedan' }, { vehiclePlate: 'QA-2', vehicleModel: 'Sedan' }] },
+    { id: 'van', vehicleType: 'van', vehicleCount: 1, totalCapacity: 6, priceCents: 18000,
+      vehicles: [{ vehiclePlate: 'QA-3', vehicleModel: 'Van' }] },
   ];
   await t.test('INT-01 NEW_REQUEST persists before ACK and reaches owning stay/staff only', async () => {
     assert.equal((await operation(owner, 'NEW_REQUEST', taxi)).ok, true);

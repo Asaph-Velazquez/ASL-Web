@@ -5,6 +5,7 @@ export interface TransportOption {
   totalCapacity: number;
   priceCents: number;
   description?: string;
+  vehicles?: TransportVehicle[];
 }
 
 export interface TransportVehicle {
@@ -59,6 +60,7 @@ export function validOptions(options: TransportOption[], passengers: unknown) {
     Number.isSafeInteger(option.totalCapacity) && option.totalCapacity >= passengers &&
     option.totalCapacity >= option.vehicleCount && option.totalCapacity <= 10000 &&
     Number.isSafeInteger(option.priceCents) && option.priceCents >= 0 &&
+    Array.isArray(option.vehicles) && validVehicles(option.vehicles, option.vehicleCount) &&
     (option.description === undefined || (typeof option.description === 'string' &&
       option.description.trim().length > 0 && option.description.trim().length <= 240 &&
       hasSafeCharacters(option.description.trim()))));
@@ -79,6 +81,16 @@ export function validVehicles(vehicles: TransportVehicle[], count: number): bool
     vehicles.every(vehicle => validLabel(vehicle.vehiclePlate) && validLabel(vehicle.vehicleModel) &&
       (!vehicle.vehicleColor?.trim() || validLabel(vehicle.vehicleColor))) &&
     new Set(vehicles.map(vehicle => vehicle.vehiclePlate.trim().toUpperCase())).size === count;
+}
+
+export function assignmentVehicles(details: TransportDetails): TransportVehicle[] {
+  const accepted = currentAcceptance(details);
+  if (!accepted) return [];
+  return Array.from({ length: accepted.option.vehicleCount }, (_, index) => ({
+    vehiclePlate: '', vehicleModel: '', vehicleColor: '',
+    ...accepted.option.vehicles?.[index],
+    ...details.transportResponse?.vehicles?.[index],
+  }));
 }
 
 export function transportAcceptanceStatus(details: TransportDetails): string {

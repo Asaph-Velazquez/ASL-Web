@@ -10,9 +10,9 @@ import { broadcastRequest, publicRequest } from '../services/requestBroadcast.js
 
 const staff = { isStaff: true, username: 'Reception' };
 const guest = { isStaff: false, stayId: 'stay-1', guestName: 'Guest' };
-const option = { id: 'car-1', vehicleType: 'car', vehicleCount: 2, totalCapacity: 8, priceCents: 12345 };
 const vehicles = [{ vehiclePlate: 'AAA-1', vehicleModel: 'Sedan', vehicleColor: 'Blue' },
   { vehiclePlate: 'AAA-2', vehicleModel: 'Sedan' }];
+const option = { id: 'car-1', vehicleType: 'car', vehicleCount: 2, totalCapacity: 8, priceCents: 12345, vehicles };
 const initial = () => ({ _id: 'mongo-id', requestId: 'taxi-1', stayId: guest.stayId,
   status: 'pending', mutationVersion: 0, history: [],
   details: { serviceType: 'taxi', passengerCount: 6, timeMode: 'now', destinationLabel: 'Airport' } });
@@ -108,7 +108,7 @@ test('guest chooses among distinct proposals and accepted details persist across
   const db = repository();
   const alternatives = [
     { ...option, description: 'Two sedans, one suitcase per vehicle' },
-    { id: 'van-2', vehicleType: 'van', vehicleCount: 1, totalCapacity: 6, priceCents: 18000, description: '  Van with space for six suitcases  ' },
+    { id: 'van-2', vehicleType: 'van', vehicleCount: 1, totalCapacity: 6, priceCents: 18000, vehicles: [vehicles[0]], description: '  Van with space for six suitcases  ' },
   ];
   const published = await publish(db, alternatives);
   assert.equal(published.details.transportProposals.options.length, 2);
@@ -123,6 +123,30 @@ test('guest chooses among distinct proposals and accepted details persist across
   assert.equal(revised.details.transportAcceptance, undefined);
   await assert.rejects(accept(db, 1, 'van-2'), /Stale/);
   assert.equal((await accept(db, 2, 'van-2')).details.transportAcceptance.option.priceCents, 19000);
+});
+
+test('new proposals require a model and unique plate per vehicle before persistence', async () => {
+  for (const proposed of [undefined, [], [vehicles[0]], [vehicles[0], { ...vehicles[1], vehicleModel: ' ' }],
+    [vehicles[0], { ...vehicles[1], vehiclePlate: '' }], [vehicles[0], { ...vehicles[1], vehiclePlate: ' aaa-1 ' }]]) {
+    const db = repository();
+    await assert.rejects(publish(db, [{ ...option, vehicles: proposed }]));
+    assert.equal(db.writes, 0);
+  }
+  const db = repository();
+  await publish(db, [{ ...option, vehicles: vehicles.map(vehicle => ({ ...vehicle, vehicleModel: ' Sedan ' })) }]);
+  const accepted = await accept(db);
+  assert.equal(accepted.details.transportAcceptance.option.vehicles[0].vehicleModel, 'Sedan');
+  assert.equal(accepted.details.transportAcceptance.option.vehicles[1].vehiclePlate, 'AAA-2');
+});
+
+test('already published legacy options can still be accepted and assigned', async () => {
+  const legacyOption = { ...option };
+  delete legacyOption.vehicles;
+  const seed = initial();
+  seed.details.transportProposals = { revision: 1, options: [legacyOption] };
+  const db = repository(seed);
+  await accept(db);
+  assert.deepEqual((await assign(db)).details.transportResponse.vehicles, vehicles);
 });
 
 test('proposal descriptions are optional, bounded plain text', async () => {

@@ -1177,6 +1177,7 @@ function TarjetaPeticion({
           <p>{transportAcceptanceStatus(peticion.details || {})}</p>
           {proposals.options.map((option: TransportOption, index: number) => <p key={option.id || index}>
             {acceptance?.optionId === option.id ? 'Selected: ' : ''}{option.vehicleCount} {option.vehicleType} · {option.totalCapacity} seats · {formatTransportPrice(option.priceCents)}
+            {option.vehicles?.map((vehicle, vehicleIndex) => <span key={vehicleIndex} className="block text-xs mt-1">Vehicle {vehicleIndex + 1}: {vehicle.vehiclePlate} · {vehicle.vehicleModel}</span>)}
             {option.description && <span className="block text-xs mt-1">{option.description}</span>}
           </p>)}
           {acceptance && <p className="font-semibold">Accepted total (locked): {formatTransportPrice(acceptance.option.priceCents)}</p>}
