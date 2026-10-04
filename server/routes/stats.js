@@ -7,15 +7,31 @@ router.use(verifyStaffToken);
 
 const SERVICE_LABELS = {
   services: 'Mobility',
+  taxi: 'Taxi',
+  valet: 'Valet Parking',
   'room-service': 'Room Service',
   problem: 'Problems',
   extra: 'Extra',
   'interpreter-follow-up': 'Interpreter Follow-Up',
 };
 
-function parseDate(value) {
+function getServiceKey(request) {
+  // Mobility requests use the generic `services` type, while the concrete
+  // service is persisted in details.serviceType.
+  return request.type === 'services' && request.details?.serviceType
+    ? String(request.details.serviceType)
+    : request.type;
+}
+
+export function parseDate(value, endOfDay = false) {
   if (!value) return null;
-  const parsed = new Date(value);
+  // Date-only inputs describe local calendar days, not UTC midnights.
+  // ISO instants from the browser already include the selected day's bounds.
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  const parsed = dateOnly
+    ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]))
+    : new Date(value);
+  if (dateOnly && endOfDay) parsed.setHours(23, 59, 59, 999);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
@@ -110,14 +126,18 @@ router.get('/ratings', async (req, res) => {
   try {
     const { service = 'all', room = 'all', start, end } = req.query;
     const startDate = parseDate(start);
-    const endDate = parseDate(end);
+    const endDate = parseDate(end, true);
 
     const query = {
       rating: { $ne: null },
     };
+    const filterClauses = [];
 
     if (service !== 'all') {
-      query.type = service;
+      filterClauses.push({ $or: [
+        { type: service },
+        { type: 'services', 'details.serviceType': service },
+      ] });
     }
 
     if (room !== 'all') {
@@ -125,24 +145,29 @@ router.get('/ratings', async (req, res) => {
     }
 
     if (startDate || endDate) {
-      query.ratedAt = {};
-      if (startDate) query.ratedAt.$gte = startDate;
-      if (endDate) {
-        const inclusiveEnd = new Date(endDate);
-        inclusiveEnd.setHours(23, 59, 59, 999);
-        query.ratedAt.$lte = inclusiveEnd;
-      }
+      const dateRange = {};
+      if (startDate) dateRange.$gte = startDate;
+      if (endDate) dateRange.$lte = endDate;
+      // Older ratings may not have ratedAt; use the request timestamp then.
+      filterClauses.push({ $or: [
+        { ratedAt: dateRange },
+        { ratedAt: null, timestamp: dateRange },
+      ] });
+    }
+
+    if (filterClauses.length > 0) {
+      query.$and = filterClauses;
     }
 
     const requests = await Request.find(query)
-      .select('requestId type roomNumber guestName message rating ratedAt timestamp')
+      .select('requestId type details roomNumber guestName message rating ratedAt timestamp')
       .sort({ ratedAt: -1, timestamp: -1 })
       .lean();
 
     const normalized = requests.map((request) => ({
       requestId: request.requestId,
-      type: request.type,
-      serviceLabel: SERVICE_LABELS[request.type] || request.type,
+      type: getServiceKey(request),
+      serviceLabel: SERVICE_LABELS[getServiceKey(request)] || getServiceKey(request),
       roomNumber: request.roomNumber,
       guestName: request.guestName,
       message: request.message,
@@ -160,7 +185,10 @@ router.get('/ratings', async (req, res) => {
         start: startDate ? toDayKey(startDate) : null,
         end: endDate ? toDayKey(endDate) : null,
       },
-      availableServices: Object.entries(SERVICE_LABELS).map(([key, label]) => ({ key, label })),
+      availableServices: Array.from(new Map([
+        ...Object.entries(SERVICE_LABELS).map(([key, label]) => [key, { key, label }]),
+        ...normalized.map((item) => [item.type, { key: item.type, label: item.serviceLabel }]),
+      ]).values()),
       availableRooms: rooms.sort((a, b) => String(a).localeCompare(String(b), 'en-US', { numeric: true })),
       summary: buildSummary(normalized),
       byService: groupBy(normalized, (item) => item.type, (item) => item.serviceLabel),

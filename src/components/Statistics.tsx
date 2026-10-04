@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BsArrowLeft, BsBarChartLine, BsStarFill } from 'react-icons/bs';
 import { getApiBase } from '../utils/env';
+import { toDateBoundary, toDateInput } from '../utils/statisticsDates';
 
 const API_BASE = getApiBase();
 
@@ -47,10 +48,6 @@ function getAuthHeaders(): Record<string, string> {
 
 function formatRating(value: number) {
   return value > 0 ? value.toFixed(2) : '0.00';
-}
-
-function toDateInput(date: Date) {
-  return date.toISOString().slice(0, 10);
 }
 
 function defaultStartDate() {
@@ -187,7 +184,9 @@ function Statistics() {
       try {
         setLoading(true);
         setError('');
-        const params = new URLSearchParams({ service, room, start, end });
+        const params = new URLSearchParams({
+          service, room, start: toDateBoundary(start), end: toDateBoundary(end, true),
+        });
         const response = await fetch(`${API_BASE}/stats/ratings?${params.toString()}`, {
           headers: getAuthHeaders(),
         });
