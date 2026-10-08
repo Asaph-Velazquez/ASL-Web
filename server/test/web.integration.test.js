@@ -46,6 +46,9 @@ test('isolated HTTP, MongoDB and WebSocket integration', { skip: !uri, timeout: 
       await stopped;
     }
     if (output) await new Promise(resolve => output.end(resolve));
+    assert.equal(connection.name, target.pathname.slice(1));
+    assert.match(connection.name, /^asl_qa_[a-zA-Z0-9_-]+_[a-f0-9]{32}$/);
+    await connection.dropDatabase();
     await connection.close();
   });
   const portProbe = createServer();
@@ -86,8 +89,8 @@ test('isolated HTTP, MongoDB and WebSocket integration', { skip: !uri, timeout: 
     try { data = JSON.parse(text); } catch { data = null; }
     return { status: response.status, data, headers: response.headers, ms: performance.now() - started };
   }
-  async function connect(token) {
-    const ws = new WebSocket(`${base.replace('http:', 'ws:')}/ws/hotel?token=${encodeURIComponent(token)}`);
+  async function connect(token, origin) {
+    const ws = new WebSocket(`${base.replace('http:', 'ws:')}/ws/hotel?token=${encodeURIComponent(token)}`, origin ? { origin } : {});
     const peer = { ws, messages: [] };
     sockets.push(peer);
     ws.on('message', message => peer.messages.push(JSON.parse(message.toString())));
@@ -151,6 +154,21 @@ test('isolated HTTP, MongoDB and WebSocket integration', { skip: !uri, timeout: 
     const allowed = await api('GET', '/api/health', null, null, { Origin: 'http://localhost:5173' });
     assert.equal(allowed.headers.get('access-control-allow-origin'), 'http://localhost:5173');
     assert.equal((await api('GET', '/api/health', null, null, { Origin: 'https://qa.invalid' })).status, 403);
+  });
+  await t.test('desktop staff origins allow authenticated API, preflight and operational WebSocket', async () => {
+    for (const origin of ['http://tauri.localhost', 'https://tauri.localhost', 'tauri://localhost']) {
+      const response = await api('GET', '/api/stays', staff, null, { Origin: origin });
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get('access-control-allow-origin'), origin);
+      const preflight = await api('OPTIONS', '/api/staff/login', null, null, {
+        Origin: origin, 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'content-type',
+      });
+      assert.equal(preflight.status, 204);
+      assert.equal(preflight.headers.get('access-control-allow-origin'), origin);
+    }
+    assert.equal((await api('GET', '/api/staff/list', staff, null, { Origin: 'http://tauri.localhost' })).status, 403);
+    const desktop = await connect(staff, 'http://tauri.localhost');
+    assert.ok(desktop.messages.some(message => message.type === 'INIT_REQUESTS'));
   });
   await t.test('API-06 protected registration rejects invalid JWT with 401', async () => {
     const response = await api('POST', '/api/staff/register', 'invalid', { username: 'unauthorized', password, fullName: 'QA' });

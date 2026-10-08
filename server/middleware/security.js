@@ -78,6 +78,9 @@ export const helmetMiddleware = helmet({
 // =============================================================
 
 const DEFAULT_ALLOWED_ORIGINS = [
+  'http://tauri.localhost',
+  'https://tauri.localhost',
+  'tauri://localhost',
   'http://localhost:3001',
   'http://localhost:5173',
   'https://localhost:3002',
