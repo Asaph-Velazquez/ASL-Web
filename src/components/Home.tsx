@@ -27,6 +27,7 @@ import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded";
 import LocalTaxiRoundedIcon from "@mui/icons-material/LocalTaxiRounded";
 import ReportProblemRoundedIcon from "@mui/icons-material/ReportProblemRounded";
 import RestaurantRoundedIcon from "@mui/icons-material/RestaurantRounded";
+import SignLanguageRoundedIcon from "@mui/icons-material/SignLanguageRounded";
 import ConfirmationModal from "./modals/ConfirmationModal";
 import { getWsUrl } from "../utils/env";
 import TransportResponseModal from "./modals/TransportResponseModal";
@@ -87,6 +88,7 @@ type PetitionDetails = TransportDetails & {
   scheduledAt?: string;
   hasLuggage?: boolean;
   sourceMode?: string;
+  generatedFromSignCapture?: boolean;
   transportResponse?: TransportResponse;
   category?: string;
   reportId?: string;
@@ -1114,6 +1116,16 @@ function TarjetaPeticion({
           >
             {config.etiqueta}
           </span>
+          {peticion.details?.generatedFromSignCapture === true && (
+            <span
+              className="inline-flex items-center gap-1 rounded-md border border-blue-600 bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-800"
+              title="Created through sign-language camera capture. The guest can edit the message before sending."
+              aria-label="Request created through sign-language camera capture"
+            >
+              <SignLanguageRoundedIcon sx={{ fontSize: 14 }} aria-hidden="true" />
+              ASL CAMERA
+            </span>
+          )}
         </div>
       </div>
 

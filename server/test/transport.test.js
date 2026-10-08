@@ -259,6 +259,27 @@ test('generic completion wins a race with publication', async () => {
   assert.equal(db.state.details.transportProposals, undefined);
 });
 
+test('sign capture origin survives creation, status updates and the public payload', async () => {
+  for (const type of ['room-service', 'problem', 'services']) {
+    const db = repository(null);
+    const details = { generatedFromSignCapture: true, sourceMode: 'asl',
+      ...(type === 'services' ? { serviceType: 'valet' } : {}) };
+    const payload = { id: `sign-${type}`, type, message: 'Guest reviewed message', details };
+    const created = await persistNewRequest(payload, guest, db);
+    assert.deepEqual(created.details, details);
+    for (const status of ['in-progress', 'completed']) {
+      const updated = await persistRequestUpdate({ id: payload.id, status }, staff, db);
+      assert.deepEqual(db.state.details, details);
+      assert.deepEqual(publicRequest(updated).details, details);
+    }
+  }
+  for (const details of [undefined, { sourceMode: 'asl' }, { sourceMode: 'text' }]) {
+    const created = await persistNewRequest({ id: 'regular', type: 'room-service', message: 'Request', details },
+      guest, repository(null));
+    assert.notEqual(publicRequest(created).details?.generatedFromSignCapture, true);
+  }
+});
+
 test('NEW_REQUEST rejects seeded protected details and cannot overwrite duplicate IDs', async () => {
   for (const field of ['transportProposals', 'transportAcceptance', 'transportResponse', 'transportArchive', 'transportCost']) {
     await assert.rejects(persistNewRequest({ id: 'new', details: { [field]: null } }, guest, repository()), /Transport fields/);
