@@ -4,6 +4,7 @@
 node_modules/
 pnpm-lock.yaml
 package-lock.json
+!/package-lock.json
 yarn.lock
 .pnpm-store/
 
@@ -11,6 +12,10 @@ yarn.lock
 # Build & Distribution
 # ============================================
 dist/
+src-tauri/target/
+src-tauri/gen/schemas/
+src-tauri/icons/android/
+src-tauri/icons/ios/
 build/
 build-info.json
 .next/

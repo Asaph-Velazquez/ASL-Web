@@ -5,6 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "tauri": "tauri",
+    "desktop:dev": "tauri dev",
+    "desktop:build": "tauri build --bundles nsis",
+    "desktop:icons": "tauri icon utilities/images/Hotel.png",
+    "desktop:frontend": "tsc -b && vite build --mode desktop",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
@@ -22,6 +27,7 @@
     "tailwindcss": "^4.1.16"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
     "@eslint/js": "^9.36.0",
     "@types/node": "^24.6.0",
     "@types/react": "^19.1.16",

@@ -1,0 +1,37 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "ASL Staff",
+  "version": "0.1.0",
+  "identifier": "com.asl.hotel.staff",
+  "build": {
+    "beforeDevCommand": "npm run dev -- --mode desktop",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "npm run desktop:frontend",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [{
+      "label": "main",
+      "title": "ASL Staff Control Panel",
+      "width": 1366,
+      "height": 900,
+      "minWidth": 960,
+      "minHeight": 640,
+      "dragDropEnabled": false
+    }],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' http: https: ws: wss:; object-src 'none'; base-uri 'self'; frame-src 'none'",
+      "capabilities": []
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "shortDescription": "Hotel staff requests and guest management",
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
+    "windows": {
+      "webviewInstallMode": { "type": "downloadBootstrapper" },
+      "nsis": { "installMode": "currentUser", "languages": ["Spanish", "English"], "displayLanguageSelector": true }
+    }
+  }
+}
