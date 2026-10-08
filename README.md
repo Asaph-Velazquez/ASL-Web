@@ -87,6 +87,76 @@ npm run dev
 
 El panel web se ejecutará en `http://localhost:5173`
 
+### Aplicación de escritorio del staff (Tauri 2)
+
+El panel también se empaqueta como **ASL Staff** para Windows x64. Incluye la
+interfaz React y usa `utilities/images/Hotel.png` como icono. El servidor del
+hotel, MongoDB y el gateway se ejecutan por separado. Las cuentas y permisos
+Staff/Admin siguen validándose en ASL-Web; el rol Interpreter continúa limitado
+a la consola de llamadas. La app tiene su propia carpeta de datos y sesión,
+separada de ASL Interpreter.
+
+Para compilar necesitas Node.js, Rust con toolchain MSVC, Visual Studio Build
+Tools con C++ para escritorio y Windows SDK, y WebView2. Requisitos oficiales:
+https://v2.tauri.app/start/prerequisites/
+
+Desde `ASL-Web`, para desarrollo local con el backend en `localhost:3001`:
+
+```powershell
+npm ci
+npm run desktop:dev
+```
+
+Tauri inicia Vite en el puerto 5173 y abre la ventana de escritorio. Si ese puerto
+ya está ocupado por el panel web iniciado con `run.ps1`, detén esa instancia
+antes de usar `desktop:dev`. Las pantallas desktop usan rutas hash (`#/stays`,
+`#/statistics`, etc.) para mantener la navegación y recarga dentro del paquete.
+
+Para generar una versión que conecte desde otra computadora:
+
+```powershell
+Copy-Item .env.desktop.example .env.desktop.local
+# Edita las dos URLs con el gateway HTTPS/WSS real del hotel.
+npm run desktop:build
+```
+
+```env
+VITE_API_URL=https://your-hotel-gateway.example
+VITE_WS_URL=wss://your-hotel-gateway.example/ws/hotel
+```
+
+El modo `desktop` usa `.env` y después `.env.desktop.local`; las variables del
+proceso tienen prioridad. Para pruebas en la computadora del servidor puedes
+usar `http://localhost:3001` y `ws://localhost:3001/ws/hotel`. En otra computadora,
+localhost apunta a esa computadora. Las URLs se integran al compilar: si cambia
+el dominio, recompila. No incluyas secretos del backend en variables `VITE_*`.
+
+El instalador queda en `src-tauri/target/release/bundle/nsis/` y el ejecutable en
+`src-tauri/target/release/asl-staff.exe`. Se instala por usuario y descarga el
+instalador de WebView2 si falta, por lo que ese paso requiere Internet. El paquete
+generado no está firmado digitalmente. Conserva `package-lock.json` y
+`src-tauri/Cargo.lock` para reproducir la compilación. `npm run desktop:icons`
+regenera los iconos a partir del logo del hotel.
+
+Reinicia el backend actualizado para admitir los origins locales exactos de
+Tauri en CORS. La app usa HTTP/WebSocket con los mismos tokens y controles de
+rol del panel web; no solicita acceso nativo al sistema de archivos ni incorpora
+el servidor dentro del instalador. El gateway vigente es Nginx en 8080 para
+desarrollo, publicado por HTTPS si se necesita acceso remoto.
+
+Antes de distribuir, comprueba login, solicitudes en tiempo real, navegación y
+recarga, gestión de estancias y personal, reportes, estadísticas, impresión y
+descarga de QR, descarga de logs y cierre de sesión en la computadora destino.
+
+Verificación del empaquetado (2026-10-08): lint, build web y build Tauri/NSIS x64
+aprobados; instalador de 1.96 MiB. El ejecutable inicia y responde con título
+**ASL Staff Control Panel**. Las 27 comprobaciones HTTP/MongoDB/WebSocket pasan
+con una base aislada, incluyendo CORS y preflight de Tauri y permisos del staff.
+La base temporal se elimina al terminar. `cargo fmt --check`, `node --check` y
+`git diff --check` pasan. La versión generada apunta a `localhost:3001`.
+No se verificaron visualmente las pantallas ni la impresión/descarga dentro
+de la app instalada; tampoco se instaló en otra computadora.
+
 ### Tunel publico unico para mobile y videollamada
 
 Cuando necesites exponer el sistema hacia la app movil o pruebas remotas, el punto de entrada recomendado es solo `ASL-Web/server`:
