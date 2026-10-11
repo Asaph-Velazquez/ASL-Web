@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getApiOrigin } from '../utils/env';
 import hotelLogo from '../../utilities/images/Hotel.png';
+import ConfirmationModal from './modals/ConfirmationModal';
 
 function Register() {
   const navigate = useNavigate();
@@ -14,6 +15,7 @@ function Register() {
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [registered, setRegistered] = useState(false);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,8 +62,7 @@ function Register() {
       }
 
       // Registro exitoso, redirigir a login
-      alert('User registered successfully');
-      navigate('/login');
+      setRegistered(true);
     } catch {
       setError('Unable to connect to the server. Check your connection.');
     } finally {
@@ -71,6 +72,7 @@ function Register() {
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: 'var(--bg-primary)' }}>
+      <ConfirmationModal open={registered} title="Registration successful" message="User registered successfully. You can now sign in." confirmLabel="Go to login" hideCancel onConfirm={() => navigate('/login')} onCancel={() => navigate('/login')} />
       <div className="w-full max-w-md">
         {/* Tarjeta */}
         <div className="rounded-lg shadow-lg p-8" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)', borderWidth: 1 }}>

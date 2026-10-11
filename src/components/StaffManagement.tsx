@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { BsArrowLeft, BsPlusLg, BsTrash, BsPencilSquare, BsXLg } from 'react-icons/bs';
 import { getApiOrigin } from '../utils/env';
 import hotelLogo from '../../utilities/images/Hotel.png';
+import ConfirmationModal from './modals/ConfirmationModal';
 
 // Iconos Bootstrap
 const TrashIcon = ({ className = "w-4 h-4" }) => <BsTrash className={className} />;
@@ -82,6 +83,8 @@ function StaffManagement() {
   const [editingUser, setEditingUser] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<EditForm>({ username: '', fullName: '', role: 'staff' });
   const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<StaffUser | null>(null);
+  const [deletingUser, setDeletingUser] = useState(false);
   const [registerForm, setRegisterForm] = useState<RegisterForm>(INITIAL_REGISTER_FORM);
   const [notification, setNotification] = useState<NotificationState>({
     open: false,
@@ -190,11 +193,10 @@ function StaffManagement() {
     }
   };
 
-  const handleDeleteUser = async (userId: string, username: string) => {
-    if (!confirm(`Are you sure you want to delete user "${username}"?`)) {
-      return;
-    }
-
+  const handleDeleteUser = async () => {
+    if (!userToDelete || deletingUser) return;
+    const userId = userToDelete._id;
+    setDeletingUser(true);
     try {
       const response = await fetch(`${API_BASE}/api/staff/delete/${userId}`, {
         method: 'DELETE',
@@ -202,14 +204,17 @@ function StaffManagement() {
       });
 
       if (!response.ok) {
-        throw new Error('Unable to delete the user');
+        throw new Error(await getApiErrorMessage(response, 'Unable to delete the user'));
       }
 
       // Actualizar la lista localmente
       setStaffList(prev => prev.filter(user => user._id !== userId));
+      setUserToDelete(null);
       showNotification('User deleted successfully', 'success');
-    } catch {
-      showNotification('Error deleting the user', 'error');
+    } catch (err) {
+      showNotification(err instanceof Error ? err.message : 'Error deleting the user', 'error');
+    } finally {
+      setDeletingUser(false);
     }
   };
 
@@ -452,7 +457,8 @@ function StaffManagement() {
                               <EditIcon />
                             </button>
                             <button
-                              onClick={() => handleDeleteUser(user._id, user.username)}
+                              type="button"
+                              onClick={() => setUserToDelete(user)}
                               className="p-2 rounded-lg transition-all hover:bg-red-50"
                               style={{ color: "var(--problem)" }}
                               title="Delete user"
@@ -487,6 +493,8 @@ function StaffManagement() {
           </p>
         </div>
       </div>
+
+      <ConfirmationModal open={Boolean(userToDelete)} title="Delete user" message={`Are you sure you want to delete user "${userToDelete?.username ?? ''}"? This action cannot be undone.`} confirmLabel="Delete user" variant="danger" loading={deletingUser} onConfirm={handleDeleteUser} onCancel={() => setUserToDelete(null)} />
 
       {/* Modal de Registro */}
       {showRegisterModal && (

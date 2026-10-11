@@ -1,4 +1,6 @@
 import { BsXLg } from 'react-icons/bs';
+import Dialog from '@mui/material/Dialog';
+import { useId } from 'react';
 
 type ConfirmationVariant = 'primary' | 'warning' | 'danger';
 
@@ -10,6 +12,7 @@ interface ConfirmationModalProps {
   cancelLabel?: string;
   variant?: ConfirmationVariant;
   loading?: boolean;
+  hideCancel?: boolean;
   onConfirm: () => void | Promise<void>;
   onCancel: () => void;
 }
@@ -28,17 +31,21 @@ function ConfirmationModal({
   cancelLabel = 'Cancel',
   variant = 'primary',
   loading = false,
+  hideCancel = false,
   onConfirm,
   onCancel,
 }: ConfirmationModalProps) {
+  const titleId = useId();
+  const messageId = useId();
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[80] p-4">
-      <div className="bg-auto-secondary rounded-xl shadow-xl border border-auto max-w-md w-full p-6">
+    <Dialog open={open} onClose={() => { if (!loading) onCancel(); }} aria-labelledby={titleId} aria-describedby={messageId} maxWidth="xs" fullWidth slotProps={{ paper: { sx: { backgroundColor: 'transparent', backgroundImage: 'none', borderRadius: '12px' } } }}>
+      <div className="bg-auto-secondary rounded-xl shadow-xl border border-auto w-full p-6">
         <div className="flex items-start justify-between gap-4 mb-3">
-          <h3 className="text-lg font-bold text-auto-primary">{title}</h3>
+          <h3 id={titleId} className="text-lg font-bold text-auto-primary">{title}</h3>
           <button
+            type="button"
             onClick={onCancel}
             disabled={loading}
             className="p-1 rounded-lg text-auto-secondary hover:text-auto-primary hover:bg-auto-tertiary disabled:opacity-40"
@@ -48,18 +55,22 @@ function ConfirmationModal({
           </button>
         </div>
 
-        <p className="text-sm text-auto-secondary">{message}</p>
+        <p id={messageId} className="text-sm text-auto-secondary">{message}</p>
 
         <div className="flex gap-3 mt-6">
-          <button
+          {!hideCancel && <button
+            type="button"
+            autoFocus
             onClick={onCancel}
             disabled={loading}
-            className="flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold border disabled:opacity-50"
+            className="flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold border text-auto-primary disabled:opacity-50"
             style={{ borderColor: 'var(--color-border)' }}
           >
             {cancelLabel}
-          </button>
+          </button>}
           <button
+            type="button"
+            autoFocus={hideCancel}
             onClick={onConfirm}
             disabled={loading}
             className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50 ${confirmButtonClass[variant]}`}
@@ -68,7 +79,7 @@ function ConfirmationModal({
           </button>
         </div>
       </div>
-    </div>
+    </Dialog>
   );
 }
 
