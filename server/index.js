@@ -8,6 +8,7 @@ import cors from 'cors';
 import { config } from 'dotenv';
 import jwt from 'jsonwebtoken';
 import authRoutes from './routes/auth.js';
+import consentRoutes from './routes/consents.js';
 import callsRoutes from './routes/calls.js';
 import logsRoutes from './routes/logs.js';
 import staysRoutes from './routes/stays.js';
@@ -202,6 +203,7 @@ app.get('/api/health', (req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/consents', consentRoutes);
 app.use('/api/calls', callsRoutes);
 app.use('/api/stays', staysRoutes);
 app.use('/api/staff', staffRoutes);
