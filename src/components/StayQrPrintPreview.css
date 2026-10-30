@@ -1,0 +1,21 @@
+.stay-qr-print-view {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  overflow: auto;
+  padding: 2rem;
+  color: #111;
+  background: #fff;
+  text-align: center;
+}
+.stay-qr-print-view h1 { margin: 2rem 0 1rem; font-size: 1.5rem; }
+.stay-qr-print-view img { width: 300px; max-width: 100%; height: auto; margin: 1rem auto; }
+.stay-qr-print-actions { display: flex; justify-content: center; gap: 1rem; }
+.stay-qr-print-actions button { padding: .75rem 1rem; border: 1px solid #777; border-radius: .5rem; cursor: pointer; }
+.stay-qr-print-actions button:disabled { opacity: .5; cursor: wait; }
+@media print {
+  body:has(.stay-qr-print-view) * { visibility: hidden; }
+  .stay-qr-print-view, .stay-qr-print-view * { visibility: visible !important; }
+  .stay-qr-print-view { position: absolute; overflow: visible; }
+  .stay-qr-print-view .stay-qr-print-actions { display: none; }
+}

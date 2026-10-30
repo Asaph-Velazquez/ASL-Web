@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { downloadStayQr } from '../utils/stayQr';
+import { StayQrPrintPreview } from './StayQrPrintPreview';
 import {
   BsCalendar3,
   BsDashLg,
@@ -189,6 +191,7 @@ function StayManagement() {
   });
 
   const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [qrPrintOpen, setQrPrintOpen] = useState(false);
   const [currentQr, setCurrentQr] = useState<{ stayId: string; qrCode: string } | null>(null);
 
   const [notification, setNotification] = useState<NotificationState>({
@@ -683,18 +686,17 @@ function StayManagement() {
   };
 
   const handlePrintQr = () => {
-    window.print();
+    setQrPrintOpen(true);
   };
 
   const handleDownloadQr = () => {
     if (!currentQr) return;
 
-    const link = document.createElement('a');
-    link.href = currentQr.qrCode;
-    link.download = `stay-qr-${currentQr.stayId}.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    try {
+      downloadStayQr(currentQr.qrCode, currentQr.stayId);
+    } catch (err) {
+      showNotification(err instanceof Error ? err.message : 'Unable to download the QR', 'error');
+    }
   };
 
   return (
@@ -1511,6 +1513,9 @@ function StayManagement() {
         onCancel={closeConfirmation}
         onConfirm={handleConfirmAction}
       />
+      {qrPrintOpen && currentQr && <StayQrPrintPreview
+        qrCode={currentQr.qrCode} stayId={currentQr.stayId} onClose={() => setQrPrintOpen(false)}
+      />}
     </div>
   );
 }
