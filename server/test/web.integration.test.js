@@ -320,6 +320,30 @@ test('isolated HTTP, MongoDB and WebSocket integration', { skip: !uri, timeout: 
     timings.sort((a, b) => a - b);
     t.diagnostic(`health sample n=10 concurrency=1 p50_ms=${timings[4].toFixed(2)} p95_ms=${timings[9].toFixed(2)}; no performance SLO asserted`);
   });
+  for (const action of ['cancel', 'end']) {
+    await t.test(`CPM_MOV_011: ${action} revokes an existing socket immediately and rejects the QR`, async () => {
+      const created = await api('POST', '/api/stays', staff, stayInput(`QA-${action}`));
+      assert.equal(created.status, 201);
+      const peer = await connect(created.data.qrToken);
+      const closed = once(peer.ws, 'close');
+      const start = performance.now();
+      assert.equal((await api('PATCH', `/api/stays/${created.data.stayId}/${action}`, staff)).status, 200);
+      const [code] = await closed;
+      assert.equal(code, 1008);
+      assert.ok(performance.now() - start < 30000);
+      assert.ok(peer.messages.some(message => message.type === 'SESSION_REVOKED'));
+      assert.equal((await api('POST', '/api/auth/validate', created.data.qrToken)).data.valid, false);
+    });
+  }
+  await t.test('CPM_MOV_011: every guest mutation checks persisted stay state even without a push notification', async () => {
+    const created = await api('POST', '/api/stays', staff, stayInput('QA-race'));
+    const peer = await connect(created.data.qrToken);
+    await connection.collection('stays').updateOne({ stayId: created.data.stayId }, { $set: { active: false, status: 'cancelled' } });
+    const closed = once(peer.ws, 'close');
+    peer.ws.send(JSON.stringify({ type: 'NEW_REQUEST', payload: { id: 'qa-revoked-request', type: 'room-service', message: 'WATER' } }));
+    assert.equal((await closed)[0], 1008);
+    assert.equal(await requests.countDocuments({ requestId: 'qa-revoked-request' }), 0);
+  });
   await t.test('SEG-03 invalid login attempts are rate limited', async () => {
     for (let i = 0; i < 5; i++) assert.equal((await api('POST', '/api/staff/login', null, { username: 'not-found', password })).status, 401);
     assert.equal((await api('POST', '/api/staff/login', null, { username: 'not-found', password })).status, 429);

@@ -220,6 +220,18 @@ const wss = new WebSocketServer({ noServer: true });
 // Metadatos del socket: WebSocket -> { roomNumber, guestName, stayId, isStaff }
 const socketMeta = new WeakMap();
 const clientes = new Set();
+// La revocación se publica después de persistir el estado de la estancia.
+app.locals.revokeStaySessions = (stayId) => {
+  for (const client of clientes) {
+    const meta = socketMeta.get(client);
+    if (meta?.isStaff || meta?.stayId !== stayId) continue;
+    clientes.delete(client);
+    if (client.readyState === 1) {
+      client.send(JSON.stringify({ type: 'SESSION_REVOKED' }));
+      client.close(1008, 'Guest stay revoked');
+    }
+  }
+};
 let checkingStaff = false;
 setInterval(async () => {
   if (checkingStaff) return;
@@ -333,6 +345,19 @@ wss.on('connection', async (ws) => {
   });
 
   initializeSocket(ws, loadInitialRequests, async (datos) => {
+    if (meta?.stayId && !meta.isStaff) {
+      try {
+        const stay = await Stay.findOne({ stayId: meta.stayId }).maxTimeMS(4000).lean();
+        const now = new Date();
+        if (!stay?.active || stay.status !== 'active' || stay.checkIn > now || stay.checkOut <= now) {
+          app.locals.revokeStaySessions(meta.stayId);
+          return;
+        }
+      } catch {
+        ws.close(1013, 'Guest session validation unavailable');
+        return;
+      }
+    }
     if (meta?.isStaff) {
       try {
         if (!await currentStaffIdentity(meta)) {

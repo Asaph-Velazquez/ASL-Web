@@ -263,6 +263,7 @@ router.patch('/:stayId/end', async (req, res) => {
       return res.status(404).json({ error: 'Stay not found' });
     }
 
+    req.app.locals.revokeStaySessions?.(stayId);
     return res.json({ ended: true, stay });
   } catch (error) {
     console.error('Error ending stay:', error);
@@ -363,6 +364,7 @@ router.patch('/:stayId/cancel', async (req, res) => {
     stay.active = false;
     stay.status = 'cancelled';
     await stay.save();
+    req.app.locals.revokeStaySessions?.(stayId);
 
     const transitions = await processStayTransitions();
 
@@ -397,6 +399,7 @@ router.delete('/:stayId', async (req, res) => {
       return res.status(404).json({ error: 'Stay not found' });
     }
 
+    req.app.locals.revokeStaySessions?.(stayId);
     return res.json({ deleted: true, stayId });
   } catch (error) {
     console.error('Error deleting stay:', error);
