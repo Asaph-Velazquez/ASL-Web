@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { downloadStayQr } from '../utils/stayQr';
+import { searchStays } from '../utils/staySearch';
 import { StayQrPrintPreview } from './StayQrPrintPreview';
 import {
   BsCalendar3,
@@ -169,6 +170,7 @@ function StayManagement() {
 
   const [monthCursor, setMonthCursor] = useState(new Date());
   const [selectedRoomFilter, setSelectedRoomFilter] = useState('all');
+  const [staySearch, setStaySearch] = useState('');
   const [selectedDay, setSelectedDay] = useState(new Date());
 
   const [extendModal, setExtendModal] = useState<{ open: boolean; stay: Stay | null; newCheckOut: string }>({
@@ -295,6 +297,8 @@ function StayManagement() {
 
     return stays.filter((stay) => stay.roomNumber === selectedRoomFilter);
   }, [selectedRoomFilter, stays]);
+
+  const searchedStays = useMemo(() => searchStays(filteredStays, staySearch), [filteredStays, staySearch]);
 
   const monthDates = useMemo(() => {
     const year = monthCursor.getFullYear();
@@ -1161,8 +1165,18 @@ function StayManagement() {
           <div className="bg-auto-secondary rounded-xl shadow-sm border border-auto p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-base font-bold text-auto-primary">General List</h3>
-              <span className="text-xs text-auto-tertiary">{stays.length} reservation(s)</span>
+              <span className="text-xs text-auto-tertiary" role="status">{searchedStays.length} reservation(s)</span>
             </div>
+
+            <label htmlFor="stay-search" className="block text-xs font-semibold text-auto-secondary mb-1.5">Search stays</label>
+            <input
+              id="stay-search"
+              type="search"
+              value={staySearch}
+              onChange={event => setStaySearch(event.target.value)}
+              placeholder="Room or guest name"
+              className="w-full px-3 py-2 mb-4 rounded-lg border border-auto bg-auto-tertiary text-auto-primary focus:outline-none focus:ring-2"
+            />
 
             <div className="overflow-auto max-h-[460px]">
               <table className="w-full text-sm">
@@ -1176,7 +1190,7 @@ function StayManagement() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredStays.map((stay) => {
+                  {searchedStays.map((stay) => {
                     const status = getStatus(stay);
                     const canExtend = status === 'active' || status === 'scheduled';
                     const canCancel = status === 'active' || status === 'scheduled';
@@ -1278,6 +1292,9 @@ function StayManagement() {
                       </tr>
                     );
                   })}
+                  {searchedStays.length === 0 && (
+                    <tr><td colSpan={5} className="py-6 text-center text-auto-tertiary">No reservations match your search.</td></tr>
+                  )}
                 </tbody>
               </table>
             </div>
