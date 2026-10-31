@@ -330,19 +330,65 @@ test('isolated HTTP, MongoDB and WebSocket integration', { skip: !uri, timeout: 
       assert.equal((await api('PATCH', `/api/stays/${created.data.stayId}/${action}`, staff)).status, 200);
       const [code] = await closed;
       assert.equal(code, 1008);
-      assert.ok(performance.now() - start < 30000);
+      const elapsed = performance.now() - start;
+      assert.ok(elapsed < 2000, `Revocation took ${elapsed.toFixed(1)} ms`);
+      t.diagnostic(`${action}: push and socket close in ${elapsed.toFixed(1)} ms (local integration)`);
       assert.ok(peer.messages.some(message => message.type === 'SESSION_REVOKED'));
       assert.equal((await api('POST', '/api/auth/validate', created.data.qrToken)).data.valid, false);
     });
   }
   await t.test('CPM_MOV_011: every guest mutation checks persisted stay state even without a push notification', async () => {
     const created = await api('POST', '/api/stays', staff, stayInput('QA-race'));
-    const peer = await connect(created.data.qrToken);
+    assert.equal(created.status, 201);
+    const peers = await Promise.all([connect(created.data.qrToken), connect(created.data.qrToken), connect(created.data.qrToken)]);
+    await requests.insertMany([
+      { requestId: 'qa-revoked-cancel', stayId: created.data.stayId, status: 'pending', mutationVersion: 0 },
+      { requestId: 'qa-revoked-rate', stayId: created.data.stayId, status: 'completed', mutationVersion: 0 },
+    ]);
     await connection.collection('stays').updateOne({ stayId: created.data.stayId }, { $set: { active: false, status: 'cancelled' } });
-    const closed = once(peer.ws, 'close');
-    peer.ws.send(JSON.stringify({ type: 'NEW_REQUEST', payload: { id: 'qa-revoked-request', type: 'room-service', message: 'WATER' } }));
-    assert.equal((await closed)[0], 1008);
+    const closed = peers.map(peer => once(peer.ws, 'close'));
+    peers[0].ws.send(JSON.stringify({ type: 'NEW_REQUEST', payload: { id: 'qa-revoked-request', type: 'room-service', message: 'WATER' } }));
+    peers[1].ws.send(JSON.stringify({ type: 'CANCEL_REQUEST', payload: { id: 'qa-revoked-cancel' } }));
+    peers[2].ws.send(JSON.stringify({ type: 'RATE_REQUEST', payload: { id: 'qa-revoked-rate', rating: 5 } }));
+    assert.ok((await Promise.all(closed)).every(([code]) => code === 1008));
     assert.equal(await requests.countDocuments({ requestId: 'qa-revoked-request' }), 0);
+    assert.equal((await requests.findOne({ requestId: 'qa-revoked-cancel' })).status, 'pending');
+    assert.equal((await requests.findOne({ requestId: 'qa-revoked-rate' })).rating, undefined);
+  });
+  await t.test('heartbeat performs no stay reads and never authorizes a revoked guest operation', async () => {
+    const created = await api('POST', '/api/stays', staff, stayInput('QA-ping'));
+    assert.equal(created.status, 201);
+    const peer = await connect(created.data.qrToken);
+    await connection.db.command({ profile: 2 });
+    try {
+      for (let id = 1; id <= 5; id++) {
+        peer.ws.send(JSON.stringify({ type: 'SESSION_PING', id }));
+        await poll(() => peer.messages.some(message => message.type === 'SESSION_PONG' && message.id === id));
+      }
+      assert.equal(await connection.collection('system.profile').countDocuments({
+        'command.find': 'stays', 'command.filter.stayId': created.data.stayId,
+      }), 0, 'Heartbeat must not query the stay');
+      await connection.collection('stays').findOne({ stayId: created.data.stayId });
+      assert.equal(await connection.collection('system.profile').countDocuments({
+        'command.find': 'stays', 'command.filter.stayId': created.data.stayId,
+      }), 1, 'Profiler must detect a real stay lookup');
+    } finally {
+      await connection.db.command({ profile: 0 });
+    }
+    assert.equal(await requests.countDocuments({ stayId: created.data.stayId }), 0);
+    await connection.collection('stays').updateOne({ stayId: created.data.stayId }, { $set: { active: false, status: 'cancelled' } });
+    peer.ws.send(JSON.stringify({ type: 'SESSION_PING', id: 6 }));
+    await poll(() => peer.messages.some(message => message.type === 'SESSION_PONG' && message.id === 6));
+    assert.equal((await api('POST', '/api/auth/validate', created.data.qrToken)).data.valid, false);
+    const closed = once(peer.ws, 'close');
+    const start = performance.now();
+    peer.ws.send(JSON.stringify({ type: 'NEW_REQUEST', operationId: 'after-heartbeat', payload: {
+      id: 'qa-ping-revoked', type: 'room-service', message: 'WATER',
+    } }));
+    assert.equal((await closed)[0], 1008);
+    assert.ok(performance.now() - start < 2000);
+    assert.ok(peer.messages.some(message => message.type === 'SESSION_REVOKED'));
+    assert.equal(await requests.countDocuments({ requestId: 'qa-ping-revoked' }), 0);
   });
   await t.test('SEG-03 invalid login attempts are rate limited', async () => {
     for (let i = 0; i < 5; i++) assert.equal((await api('POST', '/api/staff/login', null, { username: 'not-found', password })).status, 401);
