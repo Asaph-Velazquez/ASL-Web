@@ -225,6 +225,7 @@ app.locals.revokeStaySessions = (stayId) => {
   for (const client of clientes) {
     const meta = socketMeta.get(client);
     if (meta?.isStaff || meta?.stayId !== stayId) continue;
+    meta.revoked = true;
     clientes.delete(client);
     if (client.readyState === 1) {
       client.send(JSON.stringify({ type: 'SESSION_REVOKED' }));
@@ -315,8 +316,9 @@ wss.on('connection', async (ws) => {
 
   const loadInitialRequests = async () => {
   try {
+    if (!await validateGuestSession()) return;
     const requests = await listRequestsForSocket(meta);
-    if (ws.readyState !== 1) return;
+    if (ws.readyState !== 1 || meta?.revoked) return;
     ws.send(JSON.stringify({
       type: 'INIT_REQUESTS',
       payload: { requests: requests.map(publicRequest) },
@@ -344,36 +346,27 @@ wss.on('connection', async (ws) => {
     inactivityTimeout.refresh();
   });
 
-  initializeSocket(ws, loadInitialRequests, async (datos) => {
+  async function validateGuestSession() {
+    if (meta?.revoked || ws.readyState !== 1) return false;
     if (meta?.stayId && !meta.isStaff) {
       try {
         const stay = await Stay.findOne({ stayId: meta.stayId }).maxTimeMS(4000).lean();
         const now = new Date();
+        if (meta.revoked) return false;
         if (!stay?.active || stay.status !== 'active' || stay.checkIn > now || stay.checkOut <= now) {
           app.locals.revokeStaySessions(meta.stayId);
-          return;
+          return false;
         }
       } catch {
         ws.close(1013, 'Guest session validation unavailable');
-        return;
+        return false;
       }
     }
-    if (meta?.isStaff) {
-      try {
-        if (!await currentStaffIdentity(meta)) {
-          clientes.delete(ws);
-          ws.close(1008, 'Staff access revoked');
-          return;
-        }
-      } catch {
-        clientes.delete(ws);
-        ws.close(1013, 'Account validation unavailable');
-        return;
-      }
-    }
-    clearTimeout(inactivityTimeout);
-    inactivityTimeout.refresh();
+    return true;
+  }
 
+  initializeSocket(ws, loadInitialRequests, async (datos) => {
+    if (meta?.revoked || ws.readyState !== 1) return;
     let requestOperationId = null;
     try {
       const rawData = datos.toString();
@@ -391,6 +384,29 @@ wss.on('connection', async (ws) => {
       }
 
       const parsedMessage = JSON.parse(rawData);
+      // El latido comprueba el transporte; no autoriza operaciones del huésped.
+      if (parsedMessage?.type === 'SESSION_PING') {
+        if (Number.isSafeInteger(parsedMessage.id) && (meta?.stayId || meta?.isStaff)) {
+          inactivityTimeout.refresh();
+          ws.send(JSON.stringify({ type: 'SESSION_PONG', id: parsedMessage.id }));
+        }
+        return;
+      }
+      if (!await validateGuestSession()) return;
+      if (meta?.isStaff) {
+        try {
+          if (!await currentStaffIdentity(meta)) {
+            clientes.delete(ws);
+            ws.close(1008, 'Staff access revoked');
+            return;
+          }
+        } catch {
+          clientes.delete(ws);
+          ws.close(1013, 'Account validation unavailable');
+          return;
+        }
+      }
+      inactivityTimeout.refresh();
       if (parsedMessage?.type === 'NEW_REQUEST' && typeof parsedMessage.operationId === 'string') {
         requestOperationId = parsedMessage.operationId;
       }

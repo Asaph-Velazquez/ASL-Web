@@ -17,6 +17,19 @@ Panel web para visualizar y gestionar las peticiones enviadas desde la aplicaci�
 
 ## 🚀 Comenzar
 
+### Latidos y revocación de huéspedes
+
+El servidor responde `SESSION_PONG` a `SESSION_PING` sin consultar la estancia
+en MongoDB. Este mensaje solo comprueba conectividad: cada operación del
+huésped y cada conexión siguen validando la estancia. Al cancelar o finalizar,
+se guarda el cambio y se envía `SESSION_REVOKED` a sus sockets locales.
+
+La app móvil usa un intervalo de 20 segundos y un tiempo de respuesta de
+3 segundos. La revocación por evento no espera ese intervalo. La consulta
+HTTP de respaldo permite detectar cambios que no llegaron por evento.
+Con varias instancias se necesita un canal compartido de eventos para
+propagar el cierre inmediatamente entre procesos.
+
 ### Instalación
 
 ```bash
@@ -89,7 +102,7 @@ El panel web se ejecutará en `http://localhost:5173`
 
 ### Aplicación de escritorio del staff (Tauri 2)
 
-El panel también se empaqueta como **ASL Staff** para Windows x64. Incluye la
+El panel también se empaqueta como **ASL Staff** para Windows x64 y macOS. Incluye la
 interfaz React y usa `utilities/images/Hotel.png` como icono. El servidor del
 hotel, MongoDB y el gateway se ejecutan por separado. Las cuentas y permisos
 Staff/Admin siguen validándose en ASL-Web; el rol Interpreter continúa limitado
@@ -131,9 +144,12 @@ usar `http://localhost:3001` y `ws://localhost:3001/ws/hotel`. En otra computado
 localhost apunta a esa computadora. Las URLs se integran al compilar: si cambia
 el dominio, recompila. No incluyas secretos del backend en variables `VITE_*`.
 
-El instalador queda en `src-tauri/target/release/bundle/nsis/` y el ejecutable en
-`src-tauri/target/release/asl-staff.exe`. Se instala por usuario y descarga el
-instalador de WebView2 si falta, por lo que ese paso requiere Internet. El paquete
+En Windows, el instalador queda en `src-tauri/target/release/bundle/nsis/` y el ejecutable en
+`src-tauri/target/release/asl-staff.exe`. En macOS, el paquete `.app` queda en
+`src-tauri/target/release/bundle/macos/ASL Staff.app` (y el `.dmg`, si Tauri lo genera).
+`npm run desktop:build` selecciona el formato correcto por plataforma mediante
+`src-tauri/tauri.macos.conf.json`; no uses `--bundles nsis` en macOS. El instalador
+de Windows se instala por usuario y descarga el instalador de WebView2 si falta, por lo que ese paso requiere Internet. El paquete
 generado no está firmado digitalmente. Conserva `package-lock.json` y
 `src-tauri/Cargo.lock` para reproducir la compilación. `npm run desktop:icons`
 regenera los iconos a partir del logo del hotel.
