@@ -577,9 +577,13 @@ wss.on('connection', async (ws) => {
       });
       if (error.current) ws.send(JSON.stringify(requestUpdateMessage(error.current)));
       if (requestOperationId !== null) {
-        ws.send(JSON.stringify({ type: 'TRANSPORT_RESULT', payload: { operationId: requestOperationId, ok: false, error: error.message } }));
+        ws.send(JSON.stringify({ type: 'TRANSPORT_RESULT', payload: { operationId: requestOperationId, ok: false,
+          error: error.message, ...(typeof error.code === 'string' && error.code.startsWith('GLOSS_TRANSLATION_')
+            ? { code: error.code, retryable: error.retryable } : {}) } }));
       } else {
-        ws.send(JSON.stringify({ error: 'Invalid message format' }));
+        ws.send(JSON.stringify(typeof error.code === 'string' && error.code.startsWith('GLOSS_TRANSLATION_')
+          ? { error: error.message, code: error.code, retryable: error.retryable }
+          : { error: 'Invalid message format' }));
       }
     }
   });

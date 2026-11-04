@@ -1,6 +1,7 @@
 import { Request } from '../models/index.js';
 import { createHash } from 'node:crypto';
 import { protectedTransportFields, validateTaxiSchedule, versionFilter } from './transport.js';
+import { translateRequestMessage } from './glossTranslation.js';
 
 function normalizeTimestamp(value) {
   const parsed = value ? new Date(value) : new Date();
@@ -82,7 +83,7 @@ function existingCreationResult(existing, document, meta) {
   throw new Error('Duplicate request ID with different owner or payload');
 }
 
-export async function persistNewRequest(payload, meta = {}, model = Request) {
+export async function persistNewRequest(payload, meta = {}, model = Request, translate = translateRequestMessage) {
   const requestId = String(payload?.id || '').trim();
   if (!requestId) {
     throw new Error('NEW_REQUEST missing payload.id');
@@ -109,6 +110,12 @@ export async function persistNewRequest(payload, meta = {}, model = Request) {
   const existing = await model.findOne({ requestId }).lean();
   if (existing) return existingCreationResult(existing, document, meta);
   validateTaxiSchedule(payload.details);
+  // La huella conserva la entrada original; los reintentos no vuelven a traducir.
+  const translation = await translate(payload);
+  if (translation) {
+    document.message = translation.english;
+    document.translation = translation;
+  }
 
   // Insert only: a repeated ID must never overwrite an existing request.
   try {

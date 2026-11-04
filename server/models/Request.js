@@ -46,6 +46,20 @@ const requestSchema = new mongoose.Schema(
   {
     mutationVersion: { type: Number, default: 0 },
     creationFingerprint: { type: String, immutable: true },
+    translation: {
+      type: new mongoose.Schema({
+        original: { type: String, required: true },
+        glossInput: { type: String, required: true },
+        english: { type: String, required: true },
+        inputType: { type: String, enum: ['gloss', 'ambiguous', 'english'], required: true },
+        corrected: { type: String, default: null },
+        preprocessed: { type: String, default: null },
+        engine: { type: String, required: true },
+        translatedAt: { type: Date, required: true },
+      }, { _id: false }),
+      immutable: true,
+      default: undefined,
+    },
     requestId: {
       type: String,
       required: true,

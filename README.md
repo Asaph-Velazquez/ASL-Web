@@ -370,7 +370,111 @@ Luego actualiza `JWT_SECRET` en tu `.env` de producción.
 
 ## 📝 Desarrollo
 
+### Traducción local de glosas a inglés
+
+El servicio privado `ASL-GlossTranslator` utiliza el paquete ONNX de
+`model_onnx/asl_translator_fp32/asl_translator_fp32`. ASL-Web lo consulta al recibir
+una solicitud `NEW_REQUEST`, tanto de modo texto como de modo ASL. El servicio
+detecta inglés natural y lo conserva; si identifica glosas, las preprocesa y
+traduce. La detección es heurística: las frases ambiguas pueden producir errores.
+
+El flujo es: aplicación móvil → WebSocket autenticado de ASL-Web → traductor
+privado → MongoDB → panel de recepción y huésped propietario. Este cambio no
+envía solicitudes a la consola de videollamadas del intérprete.
+
+Para ejecutar el traductor en Docker y el backend de Web en el equipo anfitrión,
+desde la raíz de `ASL-System`:
+
+```powershell
+docker compose -f docker-compose.gloss.yml up -d --build
+```
+
+Configura `ASL-Web/server/.env` y reinicia ese backend:
+
+```dotenv
+GLOSS_TRANSLATOR_URL=http://127.0.0.1:8002
+GLOSS_TRANSLATOR_TIMEOUT_MS=10000
+```
+
+Dentro de la red de Compose, la dirección es
+`http://asl-gloss-translator:8000`; `server/compose.yaml` incluye esa conexión.
+El traductor no tiene una ruta pública en el gateway. No requiere claves del
+huésped ni conexión a MongoDB. Con `GLOSS_TRANSLATOR_URL` vacío, la traducción
+queda desactivada y se conserva el comportamiento anterior.
+
+La app antepone una categoría al mensaje, por ejemplo `FOOD: I_ME NEED WATER`.
+El backend separa únicamente los prefijos conocidos del catálogo móvil según
+el tipo de solicitud, traduce `I_ME NEED WATER` y conserva `FOOD: ` al reconstruir
+el mensaje. Los dos puntos dentro del texto y las categorías desconocidas no se
+descartan. ASL-Web siempre deja que el modelo detecte si el contenido ya está en
+inglés, incluso cuando `generatedFromSignCapture` es verdadero: el huésped puede
+haber editado el borrador de cámara. También se procesan glosas escritas en modo
+texto, sin depender de marcas del cliente ni forzar `source: "recognizer"`.
+
+`message` contiene el texto final y `translation` conserva `original` (mensaje
+completo), `glossInput` (fragmento enviado al modelo), `english` (mensaje final),
+`inputType`, `corrected`, `preprocessed`, `engine` y `translatedAt`. Estos campos
+los establece el servidor; se ignoran metadatos `translation` enviados por el
+cliente. La huella de creación utiliza el mensaje original, de modo que repetir
+el mismo identificador y contenido no vuelve a traducir ni crea otra solicitud.
+Las actualizaciones de estado conservan esa traducción.
+
+Si el servicio no responde, está ocupado o devuelve un resultado inválido,
+ASL-Web no guarda ni difunde una petición parcial. La confirmación contiene
+`ok: false`, `code: "GLOSS_TRANSLATION_UNAVAILABLE"` y `retryable: true`.
+Las entradas rechazadas por tamaño o validación usan
+`GLOSS_TRANSLATION_INVALID_INPUT` y `retryable: false`: hay que corregir el texto.
+La app actual conserva el borrador y el identificador de reintento al recibir el
+error. El límite de espera del backend es de 10 segundos, configurable entre
+100 y 12 000 milisegundos, antes de los 15 segundos de confirmación móvil.
+Un tiempo agotado no significa que el modelo haya dejado de calcular; el
+servicio mantiene sus propios límites de ejecución y concurrencia.
+
+Pruebas del contrato y de persistencia:
+
+```powershell
+cd ASL-Web/server
+npm test
+```
+
+Para comprobar el modelo real a través de HTTP, WebSocket y MongoDB, con el
+traductor listo y MongoDB local disponible:
+
+```powershell
+$env:TEST_GLOSS_TRANSLATOR_URL = 'http://127.0.0.1:8002'
+$env:TEST_GLOSS_MONGODB_URI = 'mongodb://127.0.0.1:27017/qa_gloss_local'
+$env:TEST_ALLOW_EPHEMERAL_DB = '1'
+node --test test/gloss.integration.test.js
+```
+
+La prueba rechaza direcciones MongoDB que no sean `127.0.0.1` o bases sin el
+prefijo `qa_gloss_`. Añade un identificador aleatorio, inicia un backend aislado
+sin cargar el `.env` del hotel y elimina solamente esa base temporal al finalizar.
+Comprueba traducción real, persistencia, difusión a recepción, aislamiento entre
+estancias, reintentos, texto manual y rechazo de entradas demasiado largas.
+La calidad lingüística debe revisarse con mensajes representativos del hotel;
+estas comprobaciones no garantizan que todas las traducciones sean correctas.
+
+Para probar la variante cuantizada local, inicia su Compose desde la raíz con
+`docker compose -f docker-compose.gloss-int8.yml up -d --build`, después de
+construir la imagen FP32 requerida según la
+[guía del traductor INT8](../ASL-GlossTranslator/README.md#variante-int8-para-comparación-local).
+Reinicia el
+backend con `GLOSS_TRANSLATOR_URL=http://127.0.0.1:8003` y
+`GLOSS_TRANSLATOR_ENGINE=asl-translator-int8-dynamic` en su entorno. La variable
+de motor identifica el contenedor seleccionado en los metadatos guardados;
+solo admite esa variante y `asl-translator-fp32`, que es el valor predeterminado.
+Para volver a FP32, reinicia el backend con la URL del puerto 8002 y el motor
+`asl-translator-fp32`. El contenido de las respuestas del modelo se conserva.
+
+La comparación local confirmó mejoras de recursos con INT8, pero también cambios
+de significado en algunas traducciones. Por eso el backend habitual permanece
+con FP32; INT8 queda disponible para evaluación aislada. Su integración real se
+verificó con una base temporal y un backend de pruebas, sin cambiar el proceso
+de recepción habitual.
+
 El proyecto utiliza:
+
 - **Vite** para desarrollo rápido con HMR (Hot Module Replacement)
 - **TypeScript** para type safety
 - **React** para la interfaz de usuario
